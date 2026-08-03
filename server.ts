@@ -122,6 +122,86 @@ app.get('/api/local-images/:id', (req, res) => {
   res.send(buffer);
 });
 
+// Universal Direct Image Proxy (Handles local and Cloudinary, with strict on-the-fly expiration check)
+app.get('/api/direct-image/:id', async (req, res) => {
+  try {
+    const image = db.getImageById(req.params.id);
+    if (!image) {
+      return res.status(404).send('Resim bulunamadı.');
+    }
+
+    // Check if image is expired on-the-fly
+    const now = new Date().toISOString();
+    if (image.expiresAt && image.expiresAt <= now) {
+      if (isCloudinaryConfigured && image.publicId) {
+        cloudinary.uploader.destroy(image.publicId).catch((err: any) => {
+          console.error(`Failed to destroy expired Cloudinary asset for image ${image.id} on direct access:`, err);
+        });
+      }
+      db.deleteImage(image.id);
+      return res.status(404).send('Resim bulunamadı veya süresi doldu.');
+    }
+
+    // Disable caching entirely for temporary/self-destructing images to prevent browser/CDN caching
+    if (image.expiresAt) {
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
+    } else {
+      res.set('Cache-Control', 'public, max-age=31536000');
+    }
+
+    // Determine content type
+    let contentType = 'image/png';
+    const fmt = (image.format || '').toLowerCase();
+    if (fmt === 'jpeg' || fmt === 'jpg') {
+      contentType = 'image/jpeg';
+    } else if (fmt === 'gif') {
+      contentType = 'image/gif';
+    } else if (fmt === 'webp') {
+      contentType = 'image/webp';
+    } else if (fmt === 'bmp') {
+      contentType = 'image/bmp';
+    }
+
+    res.set('Content-Type', contentType);
+
+    // If local, serve from local database data
+    if (image.isLocal && image.localData) {
+      const buffer = Buffer.from(image.localData, 'base64');
+      return res.send(buffer);
+    }
+
+    // If Cloudinary, proxy fetch the image stream so that the raw Cloudinary link is completely private
+    if (image.url) {
+      try {
+        const response = await fetch(image.url);
+        if (!response.ok) {
+          // If proxy fetch fails, try to redirect as absolute fallback
+          return res.redirect(image.url);
+        }
+        
+        const responseContentType = response.headers.get('content-type');
+        if (responseContentType) {
+          res.set('Content-Type', responseContentType);
+        }
+        
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        return res.send(buffer);
+      } catch (proxyErr) {
+        console.error(`Proxy fetch failed for image ${image.id}, redirecting to source url:`, proxyErr);
+        return res.redirect(image.url);
+      }
+    }
+
+    return res.status(404).send('Resim bulunamadı.');
+  } catch (err: any) {
+    console.error("Direct image proxy error:", err);
+    res.status(500).send('Resim yüklenirken bir sunucu hatası oluştu.');
+  }
+});
+
 // Auth API
 app.post('/api/auth/register', (req, res) => {
   try {
@@ -325,9 +405,10 @@ app.post('/api/upload', optionalAuth, upload.single('image'), async (req: AuthRe
           deleteAfter,
         });
 
+        const siteUrlVal = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
         return res.json({
           id: record.id,
-          directUrl: record.url,
+          directUrl: `${siteUrlVal}/api/direct-image/${record.id}`,
           pageUrl: `/i/${record.id}`,
           width: record.width,
           height: record.height,
@@ -363,9 +444,10 @@ app.post('/api/upload', optionalAuth, upload.single('image'), async (req: AuthRe
         deleteAfter,
       });
 
+      const siteUrlVal = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
       return res.json({
         id: record.id,
-        directUrl: record.url,
+        directUrl: `${siteUrlVal}/api/direct-image/${record.id}`,
         pageUrl: `/i/${record.id}`,
         width: record.width,
         height: record.height,
@@ -395,9 +477,10 @@ app.post('/api/upload', optionalAuth, upload.single('image'), async (req: AuthRe
       deleteAfter,
     });
 
+    const siteUrlVal = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
     res.json({
       id: record.id,
-      directUrl: record.url,
+      directUrl: `${siteUrlVal}/api/direct-image/${record.id}`,
       pageUrl: `/i/${record.id}`,
       width: record.width,
       height: record.height,
@@ -430,6 +513,8 @@ app.get('/api/images/:id', (req, res) => {
 
   // Exclude localData from response
   const { localData, ...safeImage } = image;
+  const siteUrlVal = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+  safeImage.url = `${siteUrlVal}/api/direct-image/${image.id}`;
   res.json({
     ...safeImage,
     views: image.views + 1
@@ -440,8 +525,12 @@ app.get('/api/images/:id', (req, res) => {
 app.get('/api/images-mine', requireAuth, (req: AuthRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Giriş yapılmadı' });
   const list = db.getImagesByUserId(req.user.id);
-  // Strip large localData fields
-  const safeList = list.map(({ localData, ...img }) => img);
+  const siteUrlVal = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+  // Strip large localData fields and route image URLs through the secure proxy
+  const safeList = list.map(({ localData, ...img }) => ({
+    ...img,
+    url: `${siteUrlVal}/api/direct-image/${img.id}`
+  }));
   res.json({ images: safeList });
 });
 
@@ -521,7 +610,12 @@ app.post('/api/system-config', requireAdmin, (req: AuthRequest, res) => {
 // Admin All Images list (Admin GET)
 app.get('/api/admin/images', requireAdmin, (req: AuthRequest, res) => {
   const images = db.getImages();
-  const safeImages = images.map(({ localData, ...img }) => img);
+  const siteUrlVal = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+  // Strip large localData fields and route image URLs through the secure proxy
+  const safeImages = images.map(({ localData, ...img }) => ({
+    ...img,
+    url: `${siteUrlVal}/api/direct-image/${img.id}`
+  }));
   res.json({ images: safeImages });
 });
 

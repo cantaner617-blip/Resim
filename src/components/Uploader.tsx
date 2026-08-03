@@ -82,9 +82,23 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
   const [dragActive, setDragActive] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<UploadedResult | null>(null);
+  const [results, setResults] = useState<UploadedResult[]>([]);
+  const [activeResultIndex, setActiveResultIndex] = useState<number>(0);
+  const [showBulkCodes, setShowBulkCodes] = useState<boolean>(false);
+
+  interface UploadProgressItem {
+    id: string;
+    filename: string;
+    size: number;
+    status: 'pending' | 'watermarking' | 'uploading' | 'completed' | 'failed';
+    error?: string;
+  }
+  const [uploadQueue, setUploadQueue] = useState<UploadProgressItem[]>([]);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [showToast, setShowToast] = useState<string | null>(null);
   const [guestStats, setGuestStats] = useState<{ count: number; limit: number; remaining: number } | null>(null);
+
+  const result = results.length > 0 ? results[activeResultIndex] : null;
 
   // Advanced configurations
   const [isWatermarkEnabled, setIsWatermarkEnabled] = useState<boolean>(() => {
@@ -145,15 +159,15 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
     e.stopPropagation();
     setDragActive(false);
 
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFileUpload(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFilesUpload(Array.from(e.dataTransfer.files));
     }
   };
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     e.preventDefault();
-    if (e.target.files && e.target.files[0]) {
-      handleFileUpload(e.target.files[0]);
+    if (e.target.files && e.target.files.length > 0) {
+      handleFilesUpload(Array.from(e.target.files));
     }
   };
 
@@ -169,91 +183,150 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const handleFileUpload = async (file: File) => {
-    // Basic validation
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/bmp', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-      setError("Yalnızca JPG, PNG, GIF, BMP ve WEBP formatlarındaki görseller yüklenebilir.");
+  const handleFilesUpload = async (files: File[]) => {
+    if (files.length === 0) return;
+
+    // Check maximum simultaneous files limit
+    const maxSimultaneous = user ? 10 : 5;
+    if (files.length > maxSimultaneous) {
+      setError(`Aynı anda en fazla ${maxSimultaneous} adet görsel yükleyebilirsiniz. Seçtiğiniz dosya sayısı: ${files.length}. Lütfen dosya sayısını azaltıp tekrar deneyin.`);
       return;
     }
 
     // Guest remaining limit check
-    if (!user && guestStats && guestStats.remaining <= 0) {
-      setError(`Misafir yükleme limitine ulaştınız! Misafir olarak en fazla ${guestStats.limit} resim yükleyebilirsiniz. Hemen ücretsiz kayıt olarak sınırsız yüklemeye başlayın!`);
-      return;
-    }
-
-    // Dynamic file size check: 20MB for guests, 100MB for logged in users
-    const limitMb = user ? 100 : 20;
-    const maxSize = limitMb * 1024 * 1024;
-    if (file.size > maxSize) {
-      setError(`Maksimum yükleme boyutu sınırını aştınız! ${user ? 'Üyeler' : 'Ziyaretçiler'} için limit ${limitMb} MB'dır. ${!user ? 'Hemen ücretsiz üye olarak bu limiti 100 MB yapabilirsiniz!' : ''}`);
-      return;
+    if (!user && guestStats) {
+      if (guestStats.remaining <= 0) {
+        setError(`Misafir yükleme limitine ulaştınız! Misafir olarak en fazla ${guestStats.limit} resim yükleyebilirsiniz. Hemen ücretsiz kayıt olarak sınırsız yüklemeye başlayın!`);
+        return;
+      }
+      if (guestStats.remaining < files.length) {
+        setError(`Seçtiğiniz görsel sayısı (${files.length}), kalan misafir yükleme limitinizi (${guestStats.remaining}) aşıyor! Lütfen daha az görsel seçin veya hemen ücretsiz kayıt olun.`);
+        return;
+      }
     }
 
     setError(null);
     setLoading(true);
-    setResult(null);
+    setResults([]);
+    setActiveResultIndex(0);
+    setShowBulkCodes(false);
 
-    let fileToUpload = file;
-    if (isWatermarkEnabled && watermarkText.trim() !== '') {
+    // Initialize queue state
+    const initialQueue: UploadProgressItem[] = files.map((file, idx) => ({
+      id: `${file.name}-${idx}-${Date.now()}`,
+      filename: file.name,
+      size: file.size,
+      status: 'pending'
+    }));
+    setUploadQueue(initialQueue);
+
+    const uploadedResults: UploadedResult[] = [];
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/bmp', 'image/webp'];
+    const limitMb = user ? 100 : 20;
+    const maxSize = limitMb * 1024 * 1024;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const queueId = initialQueue[i].id;
+
+      // Validate format
+      if (!allowedTypes.includes(file.type)) {
+        setUploadQueue(prev => prev.map(item => item.id === queueId ? { ...item, status: 'failed', error: "Geçersiz format. Yalnızca JPG, PNG, GIF, BMP, WEBP yüklenebilir." } : item));
+        continue;
+      }
+
+      // Validate size
+      if (file.size > maxSize) {
+        setUploadQueue(prev => prev.map(item => item.id === queueId ? { ...item, status: 'failed', error: `Maksimum limit ${limitMb} MB'dır.` } : item));
+        continue;
+      }
+
+      // Process watermark if active
+      let fileToUpload = file;
+      if (isWatermarkEnabled && watermarkText.trim() !== '') {
+        try {
+          setUploadQueue(prev => prev.map(item => item.id === queueId ? { ...item, status: 'watermarking' } : item));
+          fileToUpload = await applyWatermark(file, watermarkText.trim());
+        } catch (watermarkErr) {
+          console.error("Filigran ekleme başarısız:", watermarkErr);
+        }
+      }
+
+      // Upload file
       try {
-        fileToUpload = await applyWatermark(file, watermarkText.trim());
-      } catch (watermarkErr) {
-        console.error("Filigran eklenirken hata oluştu, orijinal resim yüklenecek:", watermarkErr);
+        setUploadQueue(prev => prev.map(item => item.id === queueId ? { ...item, status: 'uploading' } : item));
+
+        const formData = new FormData();
+        formData.append('image', fileToUpload);
+        formData.append('deleteAfter', deleteAfter);
+
+        const headers: Record<string, string> = {};
+        const token = localStorage.getItem('token');
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        } else {
+          let guestUuid = localStorage.getItem('guest_uuid');
+          if (!guestUuid) {
+            guestUuid = typeof crypto.randomUUID === 'function' 
+              ? crypto.randomUUID() 
+              : Math.random().toString(36).substring(2) + Date.now().toString(36);
+            localStorage.setItem('guest_uuid', guestUuid);
+          }
+          headers['X-Guest-UUID'] = guestUuid;
+        }
+
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          headers,
+          body: formData,
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Görsel yüklenirken bir hata oluştu.");
+        }
+
+        uploadedResults.push(data);
+        setUploadQueue(prev => prev.map(item => item.id === queueId ? { ...item, status: 'completed' } : item));
+      } catch (err: any) {
+        console.error(err);
+        setUploadQueue(prev => prev.map(item => item.id === queueId ? { ...item, status: 'failed', error: err.message || "Yükleme hatası." } : item));
       }
     }
 
-    const formData = new FormData();
-    formData.append('image', fileToUpload);
-    formData.append('deleteAfter', deleteAfter);
+    setLoading(false);
 
-    try {
-      const headers: Record<string, string> = {};
-      const token = localStorage.getItem('token');
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      } else {
-        let guestUuid = localStorage.getItem('guest_uuid');
-        if (!guestUuid) {
-          guestUuid = typeof crypto.randomUUID === 'function' 
-            ? crypto.randomUUID() 
-            : Math.random().toString(36).substring(2) + Date.now().toString(36);
-          localStorage.setItem('guest_uuid', guestUuid);
-        }
-        headers['X-Guest-UUID'] = guestUuid;
-      }
-
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        headers,
-        body: formData,
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Görsel yüklenirken sunucu tarafında bir hata oluştu.");
-      }
-
-      setResult(data);
+    if (uploadedResults.length > 0) {
+      setResults(uploadedResults);
+      setActiveResultIndex(0);
       if (!user) {
         fetchGuestStats();
       }
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Yükleme sırasında teknik bir sorun oluştu.");
-    } finally {
-      setLoading(false);
+    } else {
+      setError("Seçilen görsellerin hiçbiri yüklenemedi. Lütfen formatları ve boyutları kontrol edin.");
     }
   };
 
-  const handleCopy = (text: string, fieldName: string) => {
-    navigator.clipboard.writeText(text);
+  const handleCopy = (text: string, fieldName: string, label: string) => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+    } else {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textArea);
+    }
     setCopiedField(fieldName);
+    setShowToast(label);
     setTimeout(() => {
       setCopiedField(null);
     }, 2000);
+    setTimeout(() => {
+      setShowToast(prev => prev === label ? null : prev);
+    }, 2500);
   };
 
   // Pre-calculated share links
@@ -269,9 +342,24 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
     bbcode: `[URL=${pageUrl}][IMG]${directUrl}[/IMG][/URL]`
   } : null;
 
+  // Pre-calculated bulk embed codes
+  const bulkEmbedCodes = results.length > 0 ? {
+    page: results.map(res => `${siteUrl}/i/${res.id}`).join('\n'),
+    direct: results.map(res => res.directUrl).join('\n'),
+    html: results.map(res => `<a href="${siteUrl}/i/${res.id}" target="_blank"><img src="${res.directUrl}" alt="${res.filename}" border="0" /></a>`).join('\n'),
+    markdown: results.map(res => `![${res.filename}](${res.directUrl})`).join('\n'),
+    bbcode: results.map(res => `[URL=${siteUrl}/i/${res.id}][IMG]${res.directUrl}[/IMG][/URL]`).join('\n')
+  } : null;
+
+  const resetUploads = () => {
+    setResults([]);
+    setActiveResultIndex(0);
+    setUploadQueue([]);
+  };
+
   return (
     <div className="mx-auto max-w-4xl" id="uploader-container">
-      {!result ? (
+      {results.length === 0 ? (
         <div className="space-y-6">
           {/* Main Upload Zone */}
           <div
@@ -294,6 +382,7 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
               accept=".jpg,.jpeg,.png,.gif,.bmp,.webp"
               className="hidden"
               id="file-upload-input"
+              multiple
             />
 
             <AnimatePresence mode="wait">
@@ -303,16 +392,87 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  className="flex flex-col items-center space-y-4"
+                  className="w-full max-w-xl space-y-5 text-left p-2 sm:p-4 cursor-default"
                   id="uploader-loading-state"
+                  onClick={(e) => e.stopPropagation()} // Prevent triggering input click on queue item click
                 >
-                  <div className="relative h-16 w-16">
-                    <div className="absolute inset-0 rounded-full border-4 border-zinc-800"></div>
-                    <div className="absolute inset-0 rounded-full border-4 border-t-teal-400 animate-spin"></div>
+                  <div className="flex items-center justify-between border-b border-zinc-900 pb-3">
+                    <div>
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        <span className="flex h-2 w-2 rounded-full bg-teal-400 animate-pulse"></span>
+                        Toplu Yükleme İşlemi ({uploadQueue.filter(x => x.status === 'completed').length} / {uploadQueue.length})
+                      </h3>
+                      <p className="text-xs text-zinc-400 mt-0.5 font-medium">Seçilen görseller sırayla sunucuya aktarılıyor...</p>
+                    </div>
+                    <div className="text-xs font-bold text-teal-400 font-mono">
+                      {Math.round((uploadQueue.filter(x => x.status === 'completed' || x.status === 'failed').length / uploadQueue.length) * 100)}%
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <h3 className="text-lg font-semibold text-white">Görseliniz Yükleniyor</h3>
-                    <p className="text-sm text-zinc-400">Bulut sunucularımıza aktarılıyor, lütfen bekleyin...</p>
+
+                  {/* Progress Bar */}
+                  <div className="h-1.5 w-full rounded-full bg-zinc-900 overflow-hidden border border-zinc-800/50">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-teal-500 to-emerald-400 rounded-full"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(uploadQueue.filter(x => x.status === 'completed' || x.status === 'failed').length / uploadQueue.length) * 100}%` }}
+                      transition={{ duration: 0.3 }}
+                    />
+                  </div>
+
+                  {/* Queue List */}
+                  <div className="max-h-[220px] overflow-y-auto space-y-2 pr-1.5 custom-scrollbar">
+                    {uploadQueue.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between rounded-xl border border-zinc-900/80 bg-zinc-950/40 p-3 text-xs"
+                      >
+                        <div className="flex items-center space-x-3 min-w-0 flex-1">
+                          <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${
+                            item.status === 'completed'
+                              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                              : item.status === 'failed'
+                                ? 'bg-red-500/10 border-red-500/20 text-red-400'
+                                : item.status === 'uploading'
+                                  ? 'bg-teal-500/10 border-teal-500/20 text-teal-400 animate-pulse'
+                                  : 'bg-zinc-900 border-zinc-800 text-zinc-500'
+                          }`}>
+                            <FileImage className="h-4 w-4" />
+                          </div>
+                          <div className="truncate flex-1">
+                            <p className="font-semibold text-zinc-200 truncate">{item.filename}</p>
+                            <p className="text-[10px] text-zinc-500 font-mono mt-0.5">{formatSize(item.size)}</p>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0 pl-3">
+                          {item.status === 'completed' && (
+                            <span className="inline-flex items-center rounded-md bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-450 ring-1 ring-inset ring-emerald-500/20">
+                              ✓ Yüklendi
+                            </span>
+                          )}
+                          {item.status === 'failed' && (
+                            <span className="inline-flex items-center rounded-md bg-red-500/10 px-2 py-0.5 text-[10px] font-bold text-red-450 ring-1 ring-inset ring-red-500/20" title={item.error}>
+                              Hata
+                            </span>
+                          )}
+                          {item.status === 'uploading' && (
+                            <span className="inline-flex items-center rounded-md bg-teal-500/10 px-2 py-0.5 text-[10px] font-bold text-teal-400 ring-1 ring-inset ring-teal-500/20 animate-pulse">
+                              Yükleniyor
+                            </span>
+                          )}
+                          {item.status === 'watermarking' && (
+                            <span className="inline-flex items-center rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-400 ring-1 ring-inset ring-amber-500/20 animate-pulse">
+                              Filigran...
+                            </span>
+                          )}
+                          {item.status === 'pending' && (
+                            <span className="inline-flex items-center rounded-md bg-zinc-900 px-2 py-0.5 text-[10px] font-bold text-zinc-500 border border-zinc-800">
+                              Bekliyor
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </motion.div>
               ) : (
@@ -520,27 +680,70 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
           className="rounded-2xl border border-zinc-800 bg-zinc-950/50 p-6 sm:p-8 space-y-6 shadow-xl"
           id="uploader-result-panel"
         >
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-zinc-900 pb-5">
-            <div>
-              <span className="inline-flex items-center rounded-md bg-teal-400/10 px-2.5 py-1 text-xs font-semibold text-teal-400 ring-1 ring-inset ring-teal-400/20 mb-2">
-                ✓ Yükleme Başarılı
+          {/* Multiple Upload Results Gallery Navigation (Tabs) */}
+          {results.length > 1 && (
+            <div className="flex flex-col gap-2 pb-4 border-b border-zinc-900">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                Yüklenen Görseller ({results.length} Adet)
               </span>
-              <h3 className="text-lg font-bold text-white truncate max-w-md">{result.filename}</h3>
-              <p className="text-xs text-zinc-400">
-                Boyut: {formatSize(result.bytes)} • Boyutlar: {result.width}x{result.height}px
-              </p>
+              <div className="flex items-center gap-3 overflow-x-auto pb-1.5 custom-scrollbar animate-fadeIn">
+                {results.map((res, index) => (
+                  <button
+                    key={res.id}
+                    onClick={() => {
+                      setActiveResultIndex(index);
+                      setShowBulkCodes(false);
+                    }}
+                    className={`relative h-14 w-14 shrink-0 rounded-xl overflow-hidden border-2 transition-all ${
+                      activeResultIndex === index && !showBulkCodes
+                        ? 'border-teal-400 scale-[1.05]'
+                        : 'border-zinc-800/80 opacity-60 hover:opacity-100 hover:border-zinc-700'
+                    }`}
+                  >
+                    <img
+                      src={res.directUrl}
+                      alt={res.filename}
+                      referrerPolicy="no-referrer"
+                      className="h-full w-full object-cover"
+                    />
+                    {activeResultIndex === index && !showBulkCodes && (
+                      <span className="absolute inset-0 bg-teal-500/10 flex items-center justify-center">
+                        <span className="h-1.5 w-1.5 rounded-full bg-teal-400 shadow-sm shadow-teal-400"></span>
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-zinc-900 pb-5">
+            <div className="min-w-0 flex-1">
+              <span className="inline-flex items-center rounded-md bg-teal-400/10 px-2.5 py-1 text-xs font-semibold text-teal-400 ring-1 ring-inset ring-teal-400/20 mb-2 animate-pulse">
+                ✓ {results.length > 1 ? 'Tüm Görseller Yüklendi' : 'Yükleme Başarılı'}
+              </span>
+              {result && (
+                <>
+                  <h3 className="text-lg font-bold text-white truncate max-w-md">{result.filename}</h3>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    Boyut: {formatSize(result.bytes)} • Boyutlar: {result.width}x{result.height}px
+                  </p>
+                </>
+              )}
             </div>
             <div className="flex items-center space-x-2 shrink-0">
+              {result && (
+                <button
+                  onClick={() => onUploadSuccess(result.id)}
+                  className="flex items-center space-x-1.5 rounded-lg bg-teal-500 px-4 py-2.5 text-sm font-semibold text-zinc-950 hover:bg-teal-400 transition-all duration-200"
+                  id="result-view-btn"
+                >
+                  <Eye className="h-4 w-4" />
+                  <span>Resim Sayfasını Aç</span>
+                </button>
+              )}
               <button
-                onClick={() => onUploadSuccess(result.id)}
-                className="flex items-center space-x-1.5 rounded-lg bg-teal-500 px-4 py-2.5 text-sm font-semibold text-zinc-950 hover:bg-teal-400 transition-all duration-200"
-                id="result-view-btn"
-              >
-                <Eye className="h-4 w-4" />
-                <span>Resim Sayfasını Aç</span>
-              </button>
-              <button
-                onClick={() => setResult(null)}
+                onClick={resetUploads}
                 className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2.5 text-sm font-medium text-zinc-300 hover:bg-zinc-800 hover:text-white transition-all duration-200"
                 id="result-upload-more-btn"
               >
@@ -552,133 +755,449 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
           <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
             
             {/* Thumbnail Preview */}
-            <div className="md:col-span-2 flex items-center justify-center bg-zinc-900/50 rounded-xl border border-zinc-900 p-4 min-h-[220px]">
-              <img
-                src={result.directUrl}
-                alt={result.filename}
-                referrerPolicy="no-referrer"
-                className="max-h-56 max-w-full rounded-lg object-contain shadow-md"
-              />
+            <div className="md:col-span-2 flex flex-col items-center justify-center bg-zinc-900/50 rounded-xl border border-zinc-900 p-4 min-h-[220px]">
+              {result && (
+                <img
+                  src={result.directUrl}
+                  alt={result.filename}
+                  referrerPolicy="no-referrer"
+                  className="max-h-56 max-w-full rounded-lg object-contain shadow-md transition-all duration-300"
+                />
+              )}
             </div>
 
             {/* Embed Codes inputs */}
             <div className="md:col-span-3 space-y-4">
               
-              {/* Image Page link */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-zinc-400 flex items-center gap-1">
-                  <LinkIcon className="h-3.5 w-3.5 text-teal-400" />
-                  Görsel İzleme Sayfası Linki
-                </label>
-                <div className="relative flex items-center">
-                  <input
-                    type="text"
-                    readOnly
-                    value={embedCodes?.page}
-                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 pr-10 text-sm text-zinc-200 focus:border-teal-500 focus:outline-none"
-                  />
+              {results.length > 1 && (
+                <div className="flex bg-zinc-900/60 p-1 rounded-xl border border-zinc-800/80 gap-1">
                   <button
-                    onClick={() => handleCopy(embedCodes?.page || '', 'page')}
-                    className="absolute right-1 top-1 bottom-1 px-2.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors"
+                    type="button"
+                    onClick={() => setShowBulkCodes(false)}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      !showBulkCodes
+                        ? 'bg-zinc-850 text-teal-400 border border-zinc-700/60 shadow-sm'
+                        : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
                   >
-                    {copiedField === 'page' ? <Check className="h-3.5 w-3.5 text-teal-400" /> : <Copy className="h-3.5 w-3.5" />}
+                    Tekil Görsel Kodları
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowBulkCodes(true)}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      showBulkCodes
+                        ? 'bg-zinc-850 text-teal-400 border border-zinc-700/60 shadow-sm'
+                        : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    Toplu Görsel Kodları ({results.length})
                   </button>
                 </div>
-              </div>
+              )}
 
-              {/* Direct Link */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-zinc-400 flex items-center gap-1">
-                  <FileImage className="h-3.5 w-3.5 text-teal-400" />
-                  Doğrudan Resim Linki (Direct Link)
-                </label>
-                <div className="relative flex items-center">
-                  <input
-                    type="text"
-                    readOnly
-                    value={embedCodes?.direct}
-                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 pr-10 text-sm text-zinc-200 focus:border-teal-500 focus:outline-none"
-                  />
-                  <button
-                    onClick={() => handleCopy(embedCodes?.direct || '', 'direct')}
-                    className="absolute right-1 top-1 bottom-1 px-2.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors"
-                  >
-                    {copiedField === 'direct' ? <Check className="h-3.5 w-3.5 text-teal-400" /> : <Copy className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
-              </div>
+              {!showBulkCodes ? (
+                <>
+                  {/* Image Page link */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-zinc-400 flex items-center gap-1">
+                      <LinkIcon className="h-3.5 w-3.5 text-teal-400" />
+                      Görsel İzleme Sayfası Linki
+                    </label>
+                    <div className="relative flex items-center">
+                      <input
+                        type="text"
+                        readOnly
+                        value={embedCodes?.page}
+                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 pr-10 text-sm text-zinc-200 focus:border-teal-500 focus:outline-none"
+                      />
+                      <motion.button
+                        whileTap={{ scale: 0.92 }}
+                        onClick={() => handleCopy(embedCodes?.page || '', 'page', 'Görsel İzleme Sayfası Linki')}
+                        className={`absolute right-1 top-1 bottom-1 px-2.5 rounded transition-all duration-200 flex items-center justify-center ${
+                          copiedField === 'page'
+                            ? 'bg-teal-500/10 text-teal-400 border border-teal-500/25'
+                            : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white'
+                        }`}
+                      >
+                        <AnimatePresence mode="wait">
+                          <motion.div
+                            key={copiedField === 'page' ? 'checked' : 'copy'}
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.8 }}
+                            transition={{ duration: 0.12 }}
+                          >
+                            {copiedField === 'page' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                          </motion.div>
+                        </AnimatePresence>
+                      </motion.button>
+                    </div>
+                  </div>
 
-              {/* HTML Embed Code */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-zinc-400 flex items-center gap-1">
-                  <Code className="h-3.5 w-3.5 text-teal-400" />
-                  HTML Embed Kodu
-                </label>
-                <div className="relative flex items-center">
-                  <input
-                    type="text"
-                    readOnly
-                    value={embedCodes?.html}
-                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 pr-10 text-sm text-zinc-200 focus:border-teal-500 focus:outline-none"
-                  />
-                  <button
-                    onClick={() => handleCopy(embedCodes?.html || '', 'html')}
-                    className="absolute right-1 top-1 bottom-1 px-2.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors"
-                  >
-                    {copiedField === 'html' ? <Check className="h-3.5 w-3.5 text-teal-400" /> : <Copy className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
-              </div>
+                  {/* Direct Link */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-zinc-400 flex items-center gap-1">
+                      <FileImage className="h-3.5 w-3.5 text-teal-400" />
+                      Doğrudan Resim Linki (Direct Link)
+                    </label>
+                    <div className="relative flex items-center">
+                      <input
+                        type="text"
+                        readOnly
+                        value={embedCodes?.direct}
+                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 pr-10 text-sm text-zinc-200 focus:border-teal-500 focus:outline-none"
+                      />
+                      <motion.button
+                        whileTap={{ scale: 0.92 }}
+                        onClick={() => handleCopy(embedCodes?.direct || '', 'direct', 'Doğrudan Resim Linki')}
+                        className={`absolute right-1 top-1 bottom-1 px-2.5 rounded transition-all duration-200 flex items-center justify-center ${
+                          copiedField === 'direct'
+                            ? 'bg-teal-500/10 text-teal-400 border border-teal-500/25'
+                            : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white'
+                        }`}
+                      >
+                        <AnimatePresence mode="wait">
+                          <motion.div
+                            key={copiedField === 'direct' ? 'checked' : 'copy'}
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.8 }}
+                            transition={{ duration: 0.12 }}
+                          >
+                            {copiedField === 'direct' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                          </motion.div>
+                        </AnimatePresence>
+                      </motion.button>
+                    </div>
+                  </div>
 
-              {/* BBCode Embed Code */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-zinc-400 flex items-center gap-1">
-                  <MessageSquare className="h-3.5 w-3.5 text-teal-400" />
-                  BBCode Kodu (Forumlar İçin)
-                </label>
-                <div className="relative flex items-center">
-                  <input
-                    type="text"
-                    readOnly
-                    value={embedCodes?.bbcode}
-                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 pr-10 text-sm text-zinc-200 focus:border-teal-500 focus:outline-none"
-                  />
-                  <button
-                    onClick={() => handleCopy(embedCodes?.bbcode || '', 'bbcode')}
-                    className="absolute right-1 top-1 bottom-1 px-2.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors"
-                  >
-                    {copiedField === 'bbcode' ? <Check className="h-3.5 w-3.5 text-teal-400" /> : <Copy className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
-              </div>
+                  {/* HTML Embed Code */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-zinc-400 flex items-center gap-1">
+                      <Code className="h-3.5 w-3.5 text-teal-400" />
+                      HTML Embed Kodu
+                    </label>
+                    <div className="relative flex items-center">
+                      <input
+                        type="text"
+                        readOnly
+                        value={embedCodes?.html}
+                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 pr-10 text-sm text-zinc-200 focus:border-teal-500 focus:outline-none"
+                      />
+                      <motion.button
+                        whileTap={{ scale: 0.92 }}
+                        onClick={() => handleCopy(embedCodes?.html || '', 'html', 'HTML Embed Kodu')}
+                        className={`absolute right-1 top-1 bottom-1 px-2.5 rounded transition-all duration-200 flex items-center justify-center ${
+                          copiedField === 'html'
+                            ? 'bg-teal-500/10 text-teal-400 border border-teal-500/25'
+                            : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white'
+                        }`}
+                      >
+                        <AnimatePresence mode="wait">
+                          <motion.div
+                            key={copiedField === 'html' ? 'checked' : 'copy'}
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.8 }}
+                            transition={{ duration: 0.12 }}
+                          >
+                            {copiedField === 'html' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                          </motion.div>
+                        </AnimatePresence>
+                      </motion.button>
+                    </div>
+                  </div>
 
-              {/* Markdown Code */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-zinc-400 flex items-center gap-1">
-                  <MessageSquare className="h-3.5 w-3.5 text-teal-400" />
-                  Markdown Embed Kodu
-                </label>
-                <div className="relative flex items-center">
-                  <input
-                    type="text"
-                    readOnly
-                    value={embedCodes?.markdown}
-                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 pr-10 text-sm text-zinc-200 focus:border-teal-500 focus:outline-none"
-                  />
-                  <button
-                    onClick={() => handleCopy(embedCodes?.markdown || '', 'markdown')}
-                    className="absolute right-1 top-1 bottom-1 px-2.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors"
-                  >
-                    {copiedField === 'markdown' ? <Check className="h-3.5 w-3.5 text-teal-400" /> : <Copy className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
-              </div>
+                  {/* BBCode Embed Code */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-zinc-400 flex items-center gap-1">
+                      <MessageSquare className="h-3.5 w-3.5 text-teal-400" />
+                      BBCode Kodu (Forumlar İçin)
+                    </label>
+                    <div className="relative flex items-center">
+                      <input
+                        type="text"
+                        readOnly
+                        value={embedCodes?.bbcode}
+                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 pr-10 text-sm text-zinc-200 focus:border-teal-500 focus:outline-none"
+                      />
+                      <motion.button
+                        whileTap={{ scale: 0.92 }}
+                        onClick={() => handleCopy(embedCodes?.bbcode || '', 'bbcode', 'BBCode Forum Kodu')}
+                        className={`absolute right-1 top-1 bottom-1 px-2.5 rounded transition-all duration-200 flex items-center justify-center ${
+                          copiedField === 'bbcode'
+                            ? 'bg-teal-500/10 text-teal-400 border border-teal-500/25'
+                            : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white'
+                        }`}
+                      >
+                        <AnimatePresence mode="wait">
+                          <motion.div
+                            key={copiedField === 'bbcode' ? 'checked' : 'copy'}
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.8 }}
+                            transition={{ duration: 0.12 }}
+                          >
+                            {copiedField === 'bbcode' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                          </motion.div>
+                        </AnimatePresence>
+                      </motion.button>
+                    </div>
+                  </div>
+
+                  {/* Markdown Code */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-zinc-400 flex items-center gap-1">
+                      <MessageSquare className="h-3.5 w-3.5 text-teal-400" />
+                      Markdown Embed Kodu
+                    </label>
+                    <div className="relative flex items-center">
+                      <input
+                        type="text"
+                        readOnly
+                        value={embedCodes?.markdown}
+                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 pr-10 text-sm text-zinc-200 focus:border-teal-500 focus:outline-none"
+                      />
+                      <motion.button
+                        whileTap={{ scale: 0.92 }}
+                        onClick={() => handleCopy(embedCodes?.markdown || '', 'markdown', 'Markdown Embed Kodu')}
+                        className={`absolute right-1 top-1 bottom-1 px-2.5 rounded transition-all duration-200 flex items-center justify-center ${
+                          copiedField === 'markdown'
+                            ? 'bg-teal-500/10 text-teal-400 border border-teal-500/25'
+                            : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white'
+                        }`}
+                      >
+                        <AnimatePresence mode="wait">
+                          <motion.div
+                            key={copiedField === 'markdown' ? 'checked' : 'copy'}
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.8 }}
+                            transition={{ duration: 0.12 }}
+                          >
+                            {copiedField === 'markdown' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                          </motion.div>
+                        </AnimatePresence>
+                      </motion.button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Bulk Image Page links */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-zinc-400 flex items-center gap-1">
+                      <LinkIcon className="h-3.5 w-3.5 text-teal-400" />
+                      Tüm Görsel İzleme Sayfası Linkleri ({results.length})
+                    </label>
+                    <div className="relative flex items-start">
+                      <textarea
+                        readOnly
+                        rows={3}
+                        value={bulkEmbedCodes?.page}
+                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 pr-10 text-xs font-mono text-zinc-200 focus:border-teal-500 focus:outline-none resize-none"
+                      />
+                      <motion.button
+                        whileTap={{ scale: 0.92 }}
+                        onClick={() => handleCopy(bulkEmbedCodes?.page || '', 'bulk-page', 'Tüm Görsel İzleme Sayfası Linkleri')}
+                        className={`absolute right-1 top-1 bottom-1 px-2.5 rounded transition-all duration-200 flex items-center justify-center ${
+                          copiedField === 'bulk-page'
+                            ? 'bg-teal-500/10 text-teal-400 border border-teal-500/25'
+                            : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white'
+                        }`}
+                      >
+                        <AnimatePresence mode="wait">
+                          <motion.div
+                            key={copiedField === 'bulk-page' ? 'checked' : 'copy'}
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.8 }}
+                            transition={{ duration: 0.12 }}
+                          >
+                            {copiedField === 'bulk-page' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                          </motion.div>
+                        </AnimatePresence>
+                      </motion.button>
+                    </div>
+                  </div>
+
+                  {/* Bulk Direct Links */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-zinc-400 flex items-center gap-1">
+                      <FileImage className="h-3.5 w-3.5 text-teal-400" />
+                      Tüm Doğrudan Resim Linkleri ({results.length})
+                    </label>
+                    <div className="relative flex items-start">
+                      <textarea
+                        readOnly
+                        rows={3}
+                        value={bulkEmbedCodes?.direct}
+                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 pr-10 text-xs font-mono text-zinc-200 focus:border-teal-500 focus:outline-none resize-none"
+                      />
+                      <motion.button
+                        whileTap={{ scale: 0.92 }}
+                        onClick={() => handleCopy(bulkEmbedCodes?.direct || '', 'bulk-direct', 'Tüm Doğrudan Resim Linkleri')}
+                        className={`absolute right-1 top-1 bottom-1 px-2.5 rounded transition-all duration-200 flex items-center justify-center ${
+                          copiedField === 'bulk-direct'
+                            ? 'bg-teal-500/10 text-teal-400 border border-teal-500/25'
+                            : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white'
+                        }`}
+                      >
+                        <AnimatePresence mode="wait">
+                          <motion.div
+                            key={copiedField === 'bulk-direct' ? 'checked' : 'copy'}
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.8 }}
+                            transition={{ duration: 0.12 }}
+                          >
+                            {copiedField === 'bulk-direct' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                          </motion.div>
+                        </AnimatePresence>
+                      </motion.button>
+                    </div>
+                  </div>
+
+                  {/* Bulk HTML Embed Codes */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-zinc-400 flex items-center gap-1">
+                      <Code className="h-3.5 w-3.5 text-teal-400" />
+                      Tüm HTML Embed Kodları ({results.length})
+                    </label>
+                    <div className="relative flex items-start">
+                      <textarea
+                        readOnly
+                        rows={3}
+                        value={bulkEmbedCodes?.html}
+                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 pr-10 text-xs font-mono text-zinc-200 focus:border-teal-500 focus:outline-none resize-none"
+                      />
+                      <motion.button
+                        whileTap={{ scale: 0.92 }}
+                        onClick={() => handleCopy(bulkEmbedCodes?.html || '', 'bulk-html', 'Tüm HTML Embed Kodları')}
+                        className={`absolute right-1 top-1 bottom-1 px-2.5 rounded transition-all duration-200 flex items-center justify-center ${
+                          copiedField === 'bulk-html'
+                            ? 'bg-teal-500/10 text-teal-400 border border-teal-500/25'
+                            : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white'
+                        }`}
+                      >
+                        <AnimatePresence mode="wait">
+                          <motion.div
+                            key={copiedField === 'bulk-html' ? 'checked' : 'copy'}
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.8 }}
+                            transition={{ duration: 0.12 }}
+                          >
+                            {copiedField === 'bulk-html' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                          </motion.div>
+                        </AnimatePresence>
+                      </motion.button>
+                    </div>
+                  </div>
+
+                  {/* Bulk BBCode */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-zinc-400 flex items-center gap-1">
+                      <MessageSquare className="h-3.5 w-3.5 text-teal-400" />
+                      Tüm BBCode Forum Kodları ({results.length})
+                    </label>
+                    <div className="relative flex items-start">
+                      <textarea
+                        readOnly
+                        rows={3}
+                        value={bulkEmbedCodes?.bbcode}
+                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 pr-10 text-xs font-mono text-zinc-200 focus:border-teal-500 focus:outline-none resize-none"
+                      />
+                      <motion.button
+                        whileTap={{ scale: 0.92 }}
+                        onClick={() => handleCopy(bulkEmbedCodes?.bbcode || '', 'bulk-bbcode', 'Tüm BBCode Forum Kodları')}
+                        className={`absolute right-1 top-1 bottom-1 px-2.5 rounded transition-all duration-200 flex items-center justify-center ${
+                          copiedField === 'bulk-bbcode'
+                            ? 'bg-teal-500/10 text-teal-400 border border-teal-500/25'
+                            : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white'
+                        }`}
+                      >
+                        <AnimatePresence mode="wait">
+                          <motion.div
+                            key={copiedField === 'bulk-bbcode' ? 'checked' : 'copy'}
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.8 }}
+                            transition={{ duration: 0.12 }}
+                          >
+                            {copiedField === 'bulk-bbcode' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                          </motion.div>
+                        </AnimatePresence>
+                      </motion.button>
+                    </div>
+                  </div>
+
+                  {/* Bulk Markdown */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-zinc-400 flex items-center gap-1">
+                      <MessageSquare className="h-3.5 w-3.5 text-teal-400" />
+                      Tüm Markdown Embed Kodları ({results.length})
+                    </label>
+                    <div className="relative flex items-start">
+                      <textarea
+                        readOnly
+                        rows={3}
+                        value={bulkEmbedCodes?.markdown}
+                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 pr-10 text-xs font-mono text-zinc-200 focus:border-teal-500 focus:outline-none resize-none"
+                      />
+                      <motion.button
+                        whileTap={{ scale: 0.92 }}
+                        onClick={() => handleCopy(bulkEmbedCodes?.markdown || '', 'bulk-markdown', 'Tüm Markdown Embed Kodları')}
+                        className={`absolute right-1 top-1 bottom-1 px-2.5 rounded transition-all duration-200 flex items-center justify-center ${
+                          copiedField === 'bulk-markdown'
+                            ? 'bg-teal-500/10 text-teal-400 border border-teal-500/25'
+                            : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white'
+                        }`}
+                      >
+                        <AnimatePresence mode="wait">
+                          <motion.div
+                            key={copiedField === 'bulk-markdown' ? 'checked' : 'copy'}
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.8 }}
+                            transition={{ duration: 0.12 }}
+                          >
+                            {copiedField === 'bulk-markdown' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                          </motion.div>
+                        </AnimatePresence>
+                      </motion.button>
+                    </div>
+                  </div>
+                </>
+              )}
 
             </div>
 
           </div>
         </motion.div>
       )}
+
+      {/* Floating Copy Toast Notification */}
+      <AnimatePresence>
+        {showToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            transition={{ type: "spring", stiffness: 350, damping: 25 }}
+            className="fixed bottom-6 right-6 z-50 flex items-center gap-3.5 rounded-2xl border border-teal-500/30 bg-zinc-950/95 px-5 py-3.5 shadow-2xl backdrop-blur-md max-w-sm"
+          >
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-teal-500/10 text-teal-400 border border-teal-500/20">
+              <Check className="h-4.5 w-4.5" />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Kopyalandı</p>
+              <p className="text-xs font-semibold text-zinc-100 leading-snug">{showToast}</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
