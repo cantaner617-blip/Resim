@@ -76,8 +76,8 @@ export default function Support() {
             <p className="text-xs text-zinc-400 leading-relaxed">
               Her türlü teknik sorun, kurumsal iş birliği veya genel sorularınız için bize yazabilirsiniz:
             </p>
-            <a href="mailto:support@resimyukle.com" className="text-xs font-bold text-teal-400 hover:underline block pt-1">
-              support@resimyukle.com
+            <a href="mailto:support@anindaresim.com" className="text-xs font-bold text-teal-400 hover:underline block pt-1">
+              support@anindaresim.com
             </a>
           </div>
 
@@ -97,7 +97,7 @@ export default function Support() {
             </div>
             <h3 className="font-bold text-white text-sm">%100 Memnuniyet</h3>
             <p className="text-xs text-zinc-400 leading-relaxed">
-              Kullanıcılarımızın deneyimi bizim en büyük önceliğimizdir. Resim Yükle platformu olarak her adımda yanınızdayız!
+              Kullanıcılarımızın deneyimi bizim en büyük önceliğimizdir. AnındaResim platformu olarak her adımda yanınızdayız!
             </p>
           </div>
         </div>

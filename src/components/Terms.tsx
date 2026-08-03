@@ -29,7 +29,7 @@ export default function Terms() {
           Kullanım Şartları &amp; Hizmet Standartları
         </h1>
         <p className="text-zinc-400 max-w-xl mx-auto text-sm sm:text-base leading-relaxed">
-          ResimYükle platformunu kullanırken uymanız gereken kurallar, yasal sorumluluklar ve sunduğumuz hizmet kalitesi standartları.
+          AnındaResim platformunu kullanırken uymanız gereken kurallar, yasal sorumluluklar ve sunduğumuz hizmet kalitesi standartları.
         </p>
       </div>
 
@@ -44,7 +44,7 @@ export default function Terms() {
               1. Kabul Edilebilir Kullanım Politikası
             </h2>
             <p className="text-sm text-zinc-300 leading-relaxed">
-              ResimYükle, yasalara uygun her türlü görsel içeriğin paylaşımı için ücretsiz hizmet vermektedir. Ancak aşağıdaki niteliklere sahip içeriklerin platformumuza yüklenmesi kesinlikle yasaktır:
+              AnındaResim, yasalara uygun her türlü görsel içeriğin paylaşımı için ücretsiz hizmet vermektedir. Ancak aşağıdaki niteliklere sahip içeriklerin platformumuza yüklenmesi kesinlikle yasaktır:
             </p>
             <ul className="space-y-2.5 text-xs text-zinc-400 pl-2">
               <li className="flex items-start gap-2">
@@ -72,7 +72,7 @@ export default function Terms() {
               2. Fikri Mülkiyet ve Haklar
             </h2>
             <p className="text-sm text-zinc-300 leading-relaxed">
-              Yüklediğiniz tüm görsellerin mülkiyeti ve yasal sorumluluğu tamamen size (yükleyen kişiye) aittir. ResimYükle, yüklediğiniz görseller üzerinde hiçbir mülkiyet iddiasında bulunmaz. Ancak, görsellerin sitenizde veya paylaştığınız yerlerde görüntülenebilmesi için platformumuza barındırma ve dağıtım lisansı vermiş sayılırsınız.
+              Yüklediğiniz tüm görsellerin mülkiyeti ve yasal sorumluluğu tamamen size (yükleyen kişiye) aittir. AnındaResim, yüklediğiniz görseller üzerinde hiçbir mülkiyet iddiasında bulunmaz. Ancak, görsellerin sitenizde veya paylaştığınız yerlerde görüntülenebilmesi için platformumuza barındırma ve dağıtım lisansı vermiş sayılırsınız.
             </p>
           </div>
 
@@ -125,7 +125,7 @@ export default function Terms() {
           <div className="rounded-2xl border border-zinc-900 bg-zinc-950/20 p-5 space-y-3 text-xs text-zinc-400">
             <span className="font-bold text-white block">Yasal Uarı:</span>
             <p className="leading-relaxed">
-              ResimYükle, 5651 sayılı kanun kapsamında "Yer Sağlayıcı" olarak hizmet vermektedir. Yüklenen yasa dışı içeriklerden platformumuz sorumlu tutulamaz; sorumluluk tamamen yükleyen tarafa aittir.
+              AnındaResim, 5651 sayılı kanun kapsamında "Yer Sağlayıcı" olarak hizmet vermektedir. Yüklenen yasa dışı içeriklerden platformumuz sorumlu tutulamaz; sorumluluk tamamen yükleyen tarafa aittir.
             </p>
           </div>
         </div>

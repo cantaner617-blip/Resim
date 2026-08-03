@@ -76,9 +76,27 @@ export default function AdminPanel({ user }: AdminPanelProps) {
     },
     {
       id: 'welcome',
-      name: 'ResimYükle\'ye Hoş Geldiniz! 🎉',
+      name: 'AnındaResim\'e Hoş Geldiniz! 🎉',
       text: 'Hızlı, reklamsız ve sınırsız görsel paylaşımının tadını çıkarın. Ücretsiz üye olarak yükleme limitinizi 100 MB\'a çıkarabileceğinizi unutmayın!',
       type: 'info' as const
+    },
+    {
+      id: 'limit_increase',
+      name: 'Yükleme Limiti Artırıldı! 🌟',
+      text: 'Tüm kayıtlı üyelerimizin tek seferlik görsel yükleme limiti 100 MB\'tan 250 MB\'a çıkarılmıştır! Yüksek kaliteli fotoğraflarınızı kolayca paylaşabilirsiniz.',
+      type: 'success' as const
+    },
+    {
+      id: 'dmca_notice',
+      name: 'Telif Hakkı & DMCA Bildirimi ⚖️',
+      text: 'Platformumuzda telif hakkı ihlali veya izinsiz içerik tespiti durumunda, "Kötüye Kullanım Bildir" sayfamızdan ya da e-posta adresimizden bize ulaşabilirsiniz.',
+      type: 'info' as const
+    },
+    {
+      id: 'community_rules',
+      name: 'Topluluk Kuralları Hatırlatması 🛡️',
+      text: 'Güvenli bir paylaşım ortamı sağlamak adına platformumuza yasa dışı, yetişkin veya şiddet içeren görsel yüklenmesi kesinlikle yasaktır. İhlal durumunda IP engellemesi uygulanır.',
+      type: 'warning' as const
     }
   ];
 
@@ -555,7 +573,7 @@ export default function AdminPanel({ user }: AdminPanelProps) {
                 {/* Ready Made Templates list */}
                 <div className="space-y-1.5">
                   <span className="text-xs font-semibold text-zinc-500">Hazır Duyuru Şablonları:</span>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                     {readyTemplates.map((t) => (
                       <button
                         key={t.id}
@@ -580,6 +598,54 @@ export default function AdminPanel({ user }: AdminPanelProps) {
                     rows={3}
                     className="w-full rounded-xl border border-zinc-800 bg-zinc-900/25 p-3 text-sm text-zinc-200 placeholder-zinc-600 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
                   />
+
+                  {announcement.trim() && (
+                    <div className="mt-3 pt-3 border-t border-zinc-900 space-y-2">
+                      <span className="text-[10px] font-extrabold text-zinc-500 uppercase tracking-wider block">Duyuru Canlı Önizlemesi (Kullanıcı Arayüzü):</span>
+                      <div className={`relative overflow-hidden rounded-xl border p-4 shadow-lg text-left ${
+                        announcementTemplate === 'success'
+                          ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
+                          : announcementTemplate === 'warning'
+                            ? 'bg-amber-500/10 border-amber-500/20 text-amber-300'
+                            : 'bg-teal-500/10 border-teal-500/20 text-teal-300'
+                      }`}>
+                        <div className="flex items-start gap-3 relative z-10">
+                          <div className={`shrink-0 flex items-center justify-center h-8 w-8 rounded-lg border shadow-sm ${
+                            announcementTemplate === 'success'
+                              ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
+                              : announcementTemplate === 'warning'
+                                ? 'bg-amber-500/20 border-amber-500/30 text-amber-400'
+                                : 'bg-teal-500/20 border-teal-500/30 text-teal-400'
+                          }`}>
+                            {announcementTemplate === 'success' ? (
+                              <Sparkles className="h-4 w-4 animate-pulse text-emerald-400" />
+                            ) : announcementTemplate === 'warning' ? (
+                              <AlertTriangle className="h-4 w-4 text-amber-400" />
+                            ) : (
+                              <Megaphone className="h-4 w-4 text-teal-400" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[8px] font-black uppercase tracking-widest ${
+                                announcementTemplate === 'success'
+                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/10'
+                                  : announcementTemplate === 'warning'
+                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/10'
+                                    : 'bg-teal-500/20 text-teal-300 border border-teal-500/10'
+                              }`}>
+                                {announcementTemplate === 'success' ? 'Duyuru' : announcementTemplate === 'warning' ? 'Önemli Uyarı' : 'Bilgi'}
+                              </span>
+                              <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Sistem Bildirimi (Önizleme)</span>
+                            </div>
+                            <p className="text-xs font-medium text-zinc-100 leading-relaxed whitespace-pre-line break-words select-none">
+                              {announcement}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-1">
                     <div className="space-y-1">

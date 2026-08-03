@@ -460,7 +460,7 @@ export default function App() {
           <div className="border-t border-zinc-900/60 pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-500">
             <div className="flex items-center space-x-1">
               <span>&copy; {new Date().getFullYear()}</span>
-              <span className="font-bold text-zinc-400">ResimYükle</span>
+              <span className="font-bold text-zinc-400">AnındaResim</span>
               <span>- Tüm Hakları Saklıdır.</span>
             </div>
             <div className="flex items-center space-x-1.5">

@@ -369,7 +369,7 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
             onDragLeave={handleDrag}
             onDrop={handleDrop}
             onClick={triggerFileInput}
-            className={`relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-12 text-center cursor-pointer transition-all duration-300 min-h-[340px] ${
+            className={`relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-12 text-center cursor-pointer transition-all duration-300 min-h-[340px] group ${
               dragActive 
                 ? 'border-teal-400 bg-teal-500/5 scale-[1.01]' 
                 : 'border-zinc-800 bg-zinc-950/40 hover:border-zinc-700 hover:bg-zinc-950/60'
@@ -481,29 +481,58 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="flex flex-col items-center space-y-4"
+                  className="flex flex-col items-center space-y-6"
                   id="uploader-idle-state"
                 >
-                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-900 border border-zinc-800 text-teal-400 shadow-inner group-hover:scale-110 transition-transform duration-300">
-                    <Upload className="h-8 w-8" />
+                  {/* Central Animated Upload Icon Container */}
+                  <div className="relative flex items-center justify-center">
+                    {/* Pulsing ring behind */}
+                    <div className="absolute -inset-4 rounded-full bg-gradient-to-tr from-teal-500/10 to-emerald-500/5 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                    
+                    {/* Animated Ripple Circles */}
+                    <div className="absolute h-24 w-24 rounded-full border border-teal-500/5 scale-90 opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500 ease-out" />
+                    <div className="absolute h-20 w-20 rounded-full border border-teal-500/10 scale-95 opacity-0 group-hover:opacity-100 group-hover:scale-105 transition-all duration-300 ease-out" />
+
+                    {/* Main Icon Container */}
+                    <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-900 border border-zinc-800 text-teal-400 shadow-inner group-hover:border-teal-500 group-hover:text-teal-300 group-hover:shadow-teal-950/20 group-hover:scale-105 transition-all duration-300">
+                      <Upload className="h-7 w-7 group-hover:-translate-y-0.5 transition-transform duration-300" />
+                    </div>
                   </div>
                   
                   <div className="space-y-2">
-                    <h3 className="text-xl font-bold tracking-tight text-white">
-                      Resmini sürükle ve bırak veya <span className="text-teal-400 font-extrabold hover:underline">dosya seç</span>
+                    <h3 className="text-xl font-bold tracking-tight text-white sm:text-2xl">
+                      Resmini sürükle ve bırak veya <span className="text-teal-400 font-extrabold group-hover:text-teal-300 transition-colors">dosya seç</span>
                     </h3>
-                    <p className="text-sm text-zinc-400 max-w-sm mx-auto">
+                    <p className="text-sm text-zinc-400 max-w-sm mx-auto font-medium">
                       Maksimum {user ? '100' : '20'} MB boyutunda JPG, PNG, GIF, BMP veya WEBP dosyalarını yükleyebilirsiniz.
                     </p>
                   </div>
 
+                  {/* Format Badges Row */}
+                  <div className="flex flex-wrap justify-center gap-1.5 pt-1">
+                    {['JPG', 'PNG', 'WEBP', 'GIF', 'BMP'].map((fmt) => (
+                      <span 
+                        key={fmt}
+                        className="inline-flex items-center rounded-lg bg-zinc-900/80 px-2.5 py-1 text-[10px] font-black tracking-wider text-zinc-500 border border-zinc-800/80 hover:border-zinc-700 hover:text-zinc-400 transition-colors duration-150"
+                      >
+                        {fmt}
+                      </span>
+                    ))}
+                  </div>
+
                   {!user ? (
-                    <div className="rounded-full bg-zinc-900/80 px-4 py-1.5 text-xs text-zinc-400 border border-zinc-800/80">
-                      💡 Giriş yapmadan yükleme limiti <strong>20 MB</strong>'dır. Üye olarak limitinizi <strong>100 MB</strong>'a çıkarabilirsiniz!
+                    <div className="rounded-full bg-zinc-900/80 px-4 py-1.5 text-xs text-zinc-400 border border-zinc-800/80 shadow-sm flex items-center gap-2">
+                      <span className="flex h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                      <span>
+                        Giriş yapmadan yükleme limiti <strong>20 MB</strong>'dır. Üye olarak limitinizi <strong>100 MB</strong>'a çıkarabilirsiniz!
+                      </span>
                     </div>
                   ) : (
-                    <div className="rounded-full bg-teal-500/10 px-4 py-1.5 text-xs text-teal-400 border border-teal-500/25">
-                      ✓ Giriş yaptınız. <strong>100 MB</strong>'lık yüksek üyelik limiti aktif!
+                    <div className="rounded-full bg-teal-500/10 px-4 py-1.5 text-xs text-teal-400 border border-teal-500/25 shadow-sm flex items-center gap-2">
+                      <span className="flex h-1.5 w-1.5 rounded-full bg-teal-400" />
+                      <span>
+                        ✓ Giriş yaptınız. <strong>100 MB</strong>'lık yüksek üyelik limiti aktif!
+                      </span>
                     </div>
                   )}
                 </motion.div>

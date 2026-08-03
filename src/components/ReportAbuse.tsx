@@ -199,7 +199,7 @@ export default function ReportAbuse() {
               <input
                 id="report-image-url"
                 type="url"
-                placeholder="https://resimyukle.com/api/local-images/..."
+                placeholder="https://anindaresim.com/api/local-images/..."
                 value={imageUrl}
                 onChange={(e) => setImageUrl(e.target.value)}
                 className="w-full rounded-xl border border-zinc-800 bg-zinc-900/40 px-3.5 py-2.5 text-sm text-zinc-200 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"

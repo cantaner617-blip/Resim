@@ -17,7 +17,7 @@ export default function Help() {
     {
       id: 1,
       question: "Görsel yüklemek için üye olmak zorunda mıyım?",
-      answer: "Hayır, ResimYükle'yi kullanmak için üye olmanız zorunlu değildir. Ana sayfamızdaki yükleme alanını kullanarak anında misafir olarak resim yükleyebilir ve paylaşım linklerinizi alabilirsiniz. Ancak ücretsiz üye olduğunuzda, yüklediğiniz tüm görselleri tek bir panelden (Galerim) yönetebilir, silebilir ve daha yüksek dosya limiti avantajlarından yararlanabilirsiniz."
+      answer: "Hayır, AnındaResim'i kullanmak için üye olmanız zorunlu değildir. Ana sayfamızdaki yükleme alanını kullanarak anında misafir olarak resim yükleyebilir ve paylaşım linklerinizi alabilirsiniz. Ancak ücretsiz üye olduğunuzda, yüklediğiniz tüm görselleri tek bir panelden (Galerim) yönetebilir, silebilir ve daha yüksek dosya limiti avantajlarından yararlanabilirsiniz."
     },
     {
       id: 2,
