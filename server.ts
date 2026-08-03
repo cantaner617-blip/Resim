@@ -89,6 +89,14 @@ app.get('/api/local-images/:id', (req, res) => {
   if (!image || !image.isLocal || !image.localData) {
     return res.status(404).send('Resim bulunamadı.');
   }
+
+  // Check if image is expired on-the-fly
+  const now = new Date().toISOString();
+  if (image.expiresAt && image.expiresAt <= now) {
+    db.deleteImage(image.id);
+    return res.status(404).send('Resim bulunamadı veya süresi doldu.');
+  }
+
   const buffer = Buffer.from(image.localData, 'base64');
   let contentType = 'image/png';
   if (image.format === 'jpeg' || image.format === 'jpg') {
@@ -101,7 +109,16 @@ app.get('/api/local-images/:id', (req, res) => {
     contentType = 'image/bmp';
   }
   res.set('Content-Type', contentType);
-  res.set('Cache-Control', 'public, max-age=31536000');
+
+  // If the image is temporary/has an expiration, disable caching completely
+  if (image.expiresAt) {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+  } else {
+    res.set('Cache-Control', 'public, max-age=31536000');
+  }
+
   res.send(buffer);
 });
 
@@ -400,6 +417,13 @@ app.get('/api/images/:id', (req, res) => {
   const image = db.getImageById(req.params.id);
   if (!image) {
     return res.status(404).json({ error: 'Resim bulunamadı.' });
+  }
+
+  // Check if image is expired on-the-fly
+  const now = new Date().toISOString();
+  if (image.expiresAt && image.expiresAt <= now) {
+    db.deleteImage(image.id);
+    return res.status(404).json({ error: 'Resim bulunamadı veya süresi doldu.' });
   }
 
   db.incrementImageViews(req.params.id);
