@@ -604,6 +604,21 @@ export const db = {
         console.error("Failed to reset guest uploads in Firestore:", err);
       });
     }
+  },
+
+  updateUserPassword(id: string, passwordHash: string): boolean {
+    const user = dbState.users.find(u => u.id === id);
+    if (user) {
+      user.passwordHash = passwordHash;
+      saveDb();
+      if (isFirebaseInitialized && firestore) {
+        updateDoc(doc(firestore, 'users', id), { passwordHash }).catch((err: any) => {
+          console.error("Failed to update user password in Firestore:", err);
+        });
+      }
+      return true;
+    }
+    return false;
   }
 };
 

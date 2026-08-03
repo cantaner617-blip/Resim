@@ -2,12 +2,66 @@ import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import crypto from 'crypto';
 import multer from 'multer';
+import nodemailer from 'nodemailer';
 import { v2 as cloudinary } from 'cloudinary';
 import { createServer as createViteServer } from 'vite';
 import { db, pwdUtil } from './server/db';
 import { signToken, verifyToken } from './server/token';
 
 const app = express();
+
+// In-memory verification codes storage for password reset
+// Key: email (lowercased), Value: { code: string, expiresAt: number }
+const verificationCodes = new Map<string, { code: string; expiresAt: number }>();
+
+async function sendVerificationCode(email: string, code: string): Promise<boolean> {
+  const smtpUser = process.env.SMTP_USER || 'angfs777@gmail.com';
+  const smtpPass = process.env.SMTP_PASS || 'xejjbvwkznsxvpaa';
+  const cleanPass = smtpPass.replace(/\s+/g, '');
+
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: smtpUser,
+      pass: cleanPass
+    }
+  });
+
+  const mailOptions = {
+    from: `"AnındaResim" <${smtpUser}>`,
+    to: email,
+    subject: 'Şifre Sıfırlama Doğrulama Kodu - AnındaResim',
+    html: `
+      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 500px; margin: 0 auto; padding: 25px; border-radius: 16px; background-color: #0b0f19; color: #f3f4f6; border: 1px solid #1f2937;">
+        <div style="text-align: center; margin-bottom: 25px;">
+          <h2 style="color: #2dd4bf; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">Anında<span style="color: #ffffff;">Resim</span></h2>
+          <p style="color: #9ca3af; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; margin-top: 4px; font-weight: 700;">Hızlı & Güvenli Görsel Paylaşım</p>
+        </div>
+        
+        <div style="background-color: #111827; border-radius: 12px; padding: 20px; border: 1px solid #374151; margin-bottom: 25px; text-align: center;">
+          <p style="margin-top: 0; font-size: 14px; color: #d1d5db; text-align: left;">Merhaba,</p>
+          <p style="font-size: 14px; color: #9ca3af; line-height: 1.6; text-align: left;">Şifrenizi sıfırlamak için talepte bulundunuz. Aşağıdaki 6 haneli doğrulama kodunu kullanarak yeni şifrenizi belirleyebilirsiniz:</p>
+          
+          <div style="font-size: 32px; font-weight: 900; letter-spacing: 6px; color: #2dd4bf; background-color: #090d16; border: 1px solid rgba(45, 212, 191, 0.2); padding: 12px 24px; border-radius: 8px; margin: 20px 0; display: inline-block; font-family: monospace;">
+            ${code}
+          </div>
+          
+          <p style="font-size: 12px; color: #ef4444; font-weight: 600; margin-bottom: 0;">Bu kod 10 dakika süreyle geçerlidir.</p>
+        </div>
+        
+        <p style="font-size: 11px; color: #6b7280; text-align: center; line-height: 1.5; margin: 0;">Eğer bu talebi siz yapmadıysanız, lütfen bu e-postayı dikkate almayınız. Güvenliğiniz için kodunuzu kimseyle paylaşmayınız.</p>
+      </div>
+    `
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    return true;
+  } catch (error) {
+    console.error("Verification email send error:", error);
+    return false;
+  }
+}
 const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json());
@@ -268,6 +322,87 @@ app.post('/api/auth/login', (req, res) => {
   } catch (err: any) {
     console.error("Login error:", err);
     res.status(500).json({ error: err.message || 'Giriş işlemi gerçekleştirilirken sunucu tarafında bir hata oluştu.' });
+  }
+});
+
+app.post('/api/auth/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'E-posta adresi zorunludur.' });
+    }
+
+    const user = db.getUserByEmail(email);
+    if (!user) {
+      return res.status(404).json({ error: 'Bu e-posta adresine kayıtlı bir kullanıcı bulunamadı.' });
+    }
+
+    // Generate a secure 6-digit verification code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Set expiration to 10 minutes from now
+    verificationCodes.set(email.toLowerCase(), {
+      code,
+      expiresAt: Date.now() + 10 * 60 * 1000
+    });
+
+    console.log(`Sending verification code ${code} to ${email}...`);
+    const isSent = await sendVerificationCode(email, code);
+
+    if (!isSent) {
+      return res.status(500).json({ error: 'Doğrulama e-postası gönderilemedi. Lütfen daha sonra tekrar deneyiniz.' });
+    }
+
+    res.json({ message: '6 haneli doğrulama kodu e-posta adresinize gönderildi.' });
+  } catch (err: any) {
+    console.error("Forgot password error:", err);
+    res.status(500).json({ error: 'Şifre sıfırlama işlemi başlatılırken bir sunucu hatası oluştu.' });
+  }
+});
+
+app.post('/api/auth/reset-password', (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ error: 'E-posta, doğrulama kodu ve yeni şifre alanları zorunludur.' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'Şifre en az 6 karakter olmalıdır.' });
+    }
+
+    const savedRecord = verificationCodes.get(email.toLowerCase());
+    if (!savedRecord) {
+      return res.status(400).json({ error: 'Lütfen önce şifre sıfırlama talebinde bulununuz.' });
+    }
+
+    if (Date.now() > savedRecord.expiresAt) {
+      verificationCodes.delete(email.toLowerCase());
+      return res.status(400).json({ error: 'Doğrulama kodunun süresi dolmuş. Lütfen yeni bir kod isteyin.' });
+    }
+
+    if (savedRecord.code !== code.trim()) {
+      return res.status(400).json({ error: 'Girdiğiniz doğrulama kodu hatalı.' });
+    }
+
+    const user = db.getUserByEmail(email);
+    if (!user) {
+      return res.status(404).json({ error: 'Kullanıcı bulunamadı.' });
+    }
+
+    // Hash and update password
+    const passwordHash = pwdUtil.hash(newPassword);
+    db.updateUserPassword(user.id, passwordHash);
+
+    // Clean up code
+    verificationCodes.delete(email.toLowerCase());
+
+    res.json({ message: 'Şifreniz başarıyla güncellendi. Yeni şifrenizle giriş yapabilirsiniz.' });
+  } catch (err: any) {
+    console.error("Reset password error:", err);
+    res.status(500).json({ error: 'Şifre sıfırlanırken bir sunucu hatası oluştu.' });
   }
 });
 
