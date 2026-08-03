@@ -9,6 +9,8 @@ import AdminPanel from './components/AdminPanel';
 import About from './components/About';
 import Terms from './components/Terms';
 import Help from './components/Help';
+import ReportAbuse from './components/ReportAbuse';
+import Support from './components/Support';
 import { User, SystemStatus } from './types';
 import { ShieldCheck, Zap, Globe, Heart, AlertTriangle, Hammer, LogIn, Megaphone, X, Sparkles, Gauge, Cloud, Code, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -413,6 +415,8 @@ export default function App() {
             <Route path="/hakkimizda" element={<About />} />
             <Route path="/sartlar" element={<Terms />} />
             <Route path="/yardim" element={<Help />} />
+            <Route path="/ihbar" element={<ReportAbuse />} />
+            <Route path="/destek" element={<Support />} />
 
             {/* Catch-all Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
@@ -430,6 +434,10 @@ export default function App() {
             <Link to="/sartlar" className="hover:text-teal-400 transition-colors">Kullanım Şartları ve Hizmet Standartları</Link>
             <span className="h-1.5 w-1.5 rounded-full bg-zinc-800" />
             <Link to="/yardim" className="hover:text-teal-400 transition-colors">Yardım &amp; SSS</Link>
+            <span className="h-1.5 w-1.5 rounded-full bg-zinc-800" />
+            <Link to="/ihbar" className="hover:text-red-400 transition-colors text-red-400/90">Kötüye Kullanım Bildir (DMCA / İhlal)</Link>
+            <span className="h-1.5 w-1.5 rounded-full bg-zinc-800" />
+            <Link to="/destek" className="hover:text-teal-400 transition-colors">İletişim &amp; Destek Merkezi</Link>
           </div>
           <div className="border-t border-zinc-900/60 pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-500">
             <div className="flex items-center space-x-1">

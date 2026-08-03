@@ -43,12 +43,38 @@ export interface SystemConfig {
   announcement: string | null;
   announcementTemplate: string | null;
   announcements?: Announcement[];
+  guestUploadLimit?: number; // Configurable guest upload limit, default 5
+}
+
+export interface AbuseReport {
+  id: string;
+  imageId?: string | null;
+  imageUrl?: string | null;
+  reporterName: string;
+  reporterEmail: string;
+  reason: string;
+  description: string;
+  status: 'pending' | 'resolved';
+  createdAt: string;
+}
+
+export interface SupportMessage {
+  id: string;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  status: 'unread' | 'read' | 'resolved';
+  createdAt: string;
 }
 
 interface DatabaseSchema {
   users: User[];
   images: ImageRecord[];
   systemConfig: SystemConfig;
+  reports: AbuseReport[];
+  supportMessages: SupportMessage[];
+  guestUploads: { [uuid: string]: number };
 }
 
 function initDb(): DatabaseSchema {
@@ -59,8 +85,12 @@ function initDb(): DatabaseSchema {
       maintenanceMode: false,
       announcement: null,
       announcementTemplate: null,
-      announcements: []
-    }
+      announcements: [],
+      guestUploadLimit: 5
+    },
+    reports: [],
+    supportMessages: [],
+    guestUploads: {}
   };
 
   if (!fs.existsSync(DB_FILE)) {
@@ -76,11 +106,21 @@ function initDb(): DatabaseSchema {
         maintenanceMode: false,
         announcement: null,
         announcementTemplate: null,
-        announcements: []
+        announcements: [],
+        guestUploadLimit: 5
       };
-    } else if (!parsed.systemConfig.announcements) {
-      parsed.systemConfig.announcements = [];
+    } else {
+      if (!parsed.systemConfig.announcements) {
+        parsed.systemConfig.announcements = [];
+      }
+      if (parsed.systemConfig.guestUploadLimit === undefined) {
+        parsed.systemConfig.guestUploadLimit = 5;
+      }
     }
+    // Ensure collections exist
+    if (!parsed.reports) parsed.reports = [];
+    if (!parsed.supportMessages) parsed.supportMessages = [];
+    if (!parsed.guestUploads) parsed.guestUploads = {};
     return parsed;
   } catch (error) {
     console.error("Error reading database file, recreating...", error);
@@ -203,6 +243,51 @@ export const db = {
       } else {
         await setDoc(configDocRef, dbState.systemConfig);
         console.log("Initialized system configuration in Firestore.");
+      }
+
+      // 4. Sync Reports
+      const reportsCol = collection(fsDb, 'reports');
+      const reportsSnapshot = await getDocsFromServer(reportsCol);
+      const fsReports: AbuseReport[] = [];
+      reportsSnapshot.forEach((doc) => {
+        fsReports.push(doc.data() as AbuseReport);
+      });
+      if (fsReports.length > 0) {
+        dbState.reports = fsReports;
+        console.log(`Loaded ${fsReports.length} reports from Firestore.`);
+      } else if (dbState.reports.length > 0) {
+        console.log(`Migrating ${dbState.reports.length} local reports to Firestore...`);
+        for (const report of dbState.reports) {
+          await setDoc(doc(fsDb, 'reports', report.id), report);
+        }
+      }
+
+      // 5. Sync Support Messages
+      const supportCol = collection(fsDb, 'supportMessages');
+      const supportSnapshot = await getDocsFromServer(supportCol);
+      const fsSupport: SupportMessage[] = [];
+      supportSnapshot.forEach((doc) => {
+        fsSupport.push(doc.data() as SupportMessage);
+      });
+      if (fsSupport.length > 0) {
+        dbState.supportMessages = fsSupport;
+        console.log(`Loaded ${fsSupport.length} support messages from Firestore.`);
+      } else if (dbState.supportMessages.length > 0) {
+        console.log(`Migrating ${dbState.supportMessages.length} local support messages to Firestore...`);
+        for (const msg of dbState.supportMessages) {
+          await setDoc(doc(fsDb, 'supportMessages', msg.id), msg);
+        }
+      }
+
+      // 6. Sync Guest Uploads
+      const guestDocRef = doc(fsDb, 'guestUploads', 'counters');
+      const guestDoc = await getDocFromServer(guestDocRef);
+      if (guestDoc.exists()) {
+        dbState.guestUploads = guestDoc.data() as { [uuid: string]: number };
+        console.log("Loaded guest upload counters from Firestore.");
+      } else {
+        await setDoc(guestDocRef, dbState.guestUploads || {});
+        console.log("Initialized guest upload counters in Firestore.");
       }
 
       saveDb();
@@ -372,6 +457,151 @@ export const db = {
     }
 
     return dbState.systemConfig;
+  },
+
+  getReports(): AbuseReport[] {
+    return dbState.reports || [];
+  },
+
+  addReport(report: Omit<AbuseReport, 'id' | 'createdAt' | 'status'>): AbuseReport {
+    const newReport: AbuseReport = {
+      ...report,
+      id: crypto.randomUUID(),
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    };
+    if (!dbState.reports) dbState.reports = [];
+    dbState.reports.push(newReport);
+    saveDb();
+
+    if (isFirebaseInitialized && firestore) {
+      setDoc(doc(firestore, 'reports', newReport.id), newReport).catch((err: any) => {
+        console.error("Failed to save report to Firestore:", err);
+      });
+    }
+
+    return newReport;
+  },
+
+  updateReportStatus(id: string, status: 'pending' | 'resolved'): AbuseReport | undefined {
+    if (!dbState.reports) dbState.reports = [];
+    const report = dbState.reports.find(r => r.id === id);
+    if (report) {
+      report.status = status;
+      saveDb();
+
+      if (isFirebaseInitialized && firestore) {
+        setDoc(doc(firestore, 'reports', id), report).catch((err: any) => {
+          console.error("Failed to update report status in Firestore:", err);
+        });
+      }
+    }
+    return report;
+  },
+
+  deleteReport(id: string): boolean {
+    if (!dbState.reports) dbState.reports = [];
+    const index = dbState.reports.findIndex(r => r.id === id);
+    if (index !== -1) {
+      dbState.reports.splice(index, 1);
+      saveDb();
+
+      if (isFirebaseInitialized && firestore) {
+        deleteDoc(doc(firestore, 'reports', id)).catch((err: any) => {
+          console.error("Failed to delete report from Firestore:", err);
+        });
+      }
+      return true;
+    }
+    return false;
+  },
+
+  getSupportMessages(): SupportMessage[] {
+    return dbState.supportMessages || [];
+  },
+
+  addSupportMessage(msg: Omit<SupportMessage, 'id' | 'createdAt' | 'status'>): SupportMessage {
+    const newMsg: SupportMessage = {
+      ...msg,
+      id: crypto.randomUUID(),
+      status: 'unread',
+      createdAt: new Date().toISOString()
+    };
+    if (!dbState.supportMessages) dbState.supportMessages = [];
+    dbState.supportMessages.push(newMsg);
+    saveDb();
+
+    if (isFirebaseInitialized && firestore) {
+      setDoc(doc(firestore, 'supportMessages', newMsg.id), newMsg).catch((err: any) => {
+        console.error("Failed to save support message to Firestore:", err);
+      });
+    }
+
+    return newMsg;
+  },
+
+  updateSupportMessageStatus(id: string, status: 'unread' | 'read' | 'resolved'): SupportMessage | undefined {
+    if (!dbState.supportMessages) dbState.supportMessages = [];
+    const msg = dbState.supportMessages.find(m => m.id === id);
+    if (msg) {
+      msg.status = status;
+      saveDb();
+
+      if (isFirebaseInitialized && firestore) {
+        setDoc(doc(firestore, 'supportMessages', id), msg).catch((err: any) => {
+          console.error("Failed to update support message status in Firestore:", err);
+        });
+      }
+    }
+    return msg;
+  },
+
+  deleteSupportMessage(id: string): boolean {
+    if (!dbState.supportMessages) dbState.supportMessages = [];
+    const index = dbState.supportMessages.findIndex(m => m.id === id);
+    if (index !== -1) {
+      dbState.supportMessages.splice(index, 1);
+      saveDb();
+
+      if (isFirebaseInitialized && firestore) {
+        deleteDoc(doc(firestore, 'supportMessages', id)).catch((err: any) => {
+          console.error("Failed to delete support message from Firestore:", err);
+        });
+      }
+      return true;
+    }
+    return false;
+  },
+
+  getGuestUploadCount(uuid: string): number {
+    if (!dbState.guestUploads) dbState.guestUploads = {};
+    return dbState.guestUploads[uuid] || 0;
+  },
+
+  incrementGuestUploadCount(uuid: string): number {
+    if (!dbState.guestUploads) dbState.guestUploads = {};
+    const count = (dbState.guestUploads[uuid] || 0) + 1;
+    dbState.guestUploads[uuid] = count;
+    saveDb();
+
+    if (isFirebaseInitialized && firestore) {
+      setDoc(doc(firestore, 'guestUploads', 'counters'), dbState.guestUploads).catch((err: any) => {
+        console.error("Failed to update guest uploads in Firestore:", err);
+      });
+    }
+
+    return count;
+  },
+
+  resetAllGuestUploads() {
+    dbState.guestUploads = {};
+    saveDb();
+
+    if (isFirebaseInitialized && firestore) {
+      setDoc(doc(firestore, 'guestUploads', 'counters'), {}).catch((err: any) => {
+        console.error("Failed to reset guest uploads in Firestore:", err);
+      });
+    }
   }
 };
 

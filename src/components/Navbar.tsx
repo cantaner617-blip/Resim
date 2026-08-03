@@ -12,7 +12,8 @@ import {
   MoreVertical, 
   Info, 
   FileText, 
-  HelpCircle 
+  HelpCircle,
+  MessageSquare
 } from 'lucide-react';
 import { User, SystemStatus } from '../types';
 
@@ -178,6 +179,28 @@ export default function Navbar({ user, onLogout, systemStatus }: NavbarProps) {
                 >
                   <HelpCircle className="h-3.5 w-3.5 text-teal-400" />
                   <span>Yardım &amp; SSS</span>
+                </Link>
+
+                <div className="px-2.5 py-1.5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider border-t border-b border-zinc-900/60 my-1">
+                  Yasal &amp; İletişim
+                </div>
+
+                <Link
+                  to="/ihbar"
+                  onClick={() => setDropdownOpen(false)}
+                  className="flex items-center space-x-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:bg-zinc-900 hover:text-white transition-colors"
+                >
+                  <ShieldAlert className="h-3.5 w-3.5 text-red-400" />
+                  <span className="text-red-400/90 hover:text-red-400">Kötüye Kullanım Bildir</span>
+                </Link>
+
+                <Link
+                  to="/destek"
+                  onClick={() => setDropdownOpen(false)}
+                  className="flex items-center space-x-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:bg-zinc-900 hover:text-white transition-colors"
+                >
+                  <MessageSquare className="h-3.5 w-3.5 text-teal-400" />
+                  <span>7/24 Destek &amp; İletişim</span>
                 </Link>
               </div>
             )}

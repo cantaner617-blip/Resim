@@ -20,5 +20,17 @@ service cloud.firestore {
     match /systemConfig/{configId} {
       allow read, write: if true;
     }
+
+    match /reports/{reportId} {
+      allow read, write: if true;
+    }
+
+    match /supportMessages/{msgId} {
+      allow read, write: if true;
+    }
+
+    match /guestUploads/{docId} {
+      allow read, write: if true;
+    }
   }
 }

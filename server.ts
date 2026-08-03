@@ -201,8 +201,26 @@ app.post('/api/upload', optionalAuth, upload.single('image'), async (req: AuthRe
       return res.status(503).json({ error: 'Sistem şu anda bakım modundadır. Lütfen daha sonra tekrar deneyiniz.' });
     }
 
-    // 20MB vs 100MB Upload Limit
+    // Guest Upload Limit Check
     const isLoggedIn = !!req.user;
+    let guestId = '';
+    if (!isLoggedIn) {
+      guestId = (req.headers['x-guest-uuid'] as string) || '';
+      if (!guestId) {
+        guestId = crypto.createHash('sha256').update(req.ip || 'unknown-ip').digest('hex');
+      }
+      const allowedLimit = sysConfig.guestUploadLimit !== undefined ? sysConfig.guestUploadLimit : 5;
+      const currentGuestCount = db.getGuestUploadCount(guestId);
+      if (currentGuestCount >= allowedLimit) {
+        return res.status(400).json({
+          error: `Misafir yükleme limitine ulaştınız! Misafir olarak en fazla ${allowedLimit} resim yükleyebilirsiniz. Hemen ücretsiz kayıt olarak sınırsız yüklemeye başlayın!`,
+          limitReached: true,
+          limit: allowedLimit
+        });
+      }
+    }
+
+    // 20MB vs 100MB Upload Limit
     const limitBytes = isLoggedIn ? 100 * 1024 * 1024 : 20 * 1024 * 1024;
     if (req.file.size > limitBytes) {
       const limitMb = isLoggedIn ? 100 : 20;
@@ -254,6 +272,10 @@ app.post('/api/upload', optionalAuth, upload.single('image'), async (req: AuthRe
         const siteUrl = process.env.APP_URL || `http://localhost:${PORT}`;
         imageUrl = `${siteUrl}/api/local-images/${fileId}`;
 
+        if (!isLoggedIn && guestId) {
+          db.incrementGuestUploadCount(guestId);
+        }
+
         const record = db.addImage({
           id: fileId,
           userId: req.user ? req.user.id : null,
@@ -284,6 +306,10 @@ app.post('/api/upload', optionalAuth, upload.single('image'), async (req: AuthRe
       const siteUrl = process.env.APP_URL || `http://localhost:${PORT}`;
       imageUrl = `${siteUrl}/api/local-images/${fileId}`;
 
+      if (!isLoggedIn && guestId) {
+        db.incrementGuestUploadCount(guestId);
+      }
+
       const record = db.addImage({
         id: fileId,
         userId: req.user ? req.user.id : null,
@@ -307,6 +333,10 @@ app.post('/api/upload', optionalAuth, upload.single('image'), async (req: AuthRe
         filename: record.filename,
         isLocalFallback: true
       });
+    }
+
+    if (!isLoggedIn && guestId) {
+      db.incrementGuestUploadCount(guestId);
     }
 
     const record = db.addImage({
@@ -396,7 +426,24 @@ app.get('/api/system-status', (req, res) => {
     maintenanceMode: sysConfig.maintenanceMode,
     announcement: sysConfig.announcement,
     announcementTemplate: sysConfig.announcementTemplate,
-    announcements: sysConfig.announcements || []
+    announcements: sysConfig.announcements || [],
+    guestUploadLimit: sysConfig.guestUploadLimit !== undefined ? sysConfig.guestUploadLimit : 5
+  });
+});
+
+// Guest Upload Stats Endpoint
+app.get('/api/guest-stats', (req, res) => {
+  const sysConfig = db.getSystemConfig();
+  const allowedLimit = sysConfig.guestUploadLimit !== undefined ? sysConfig.guestUploadLimit : 5;
+  let guestId = (req.headers['x-guest-uuid'] as string) || '';
+  if (!guestId) {
+    guestId = crypto.createHash('sha256').update(req.ip || 'unknown-ip').digest('hex');
+  }
+  const count = db.getGuestUploadCount(guestId);
+  res.json({
+    count,
+    limit: allowedLimit,
+    remaining: Math.max(0, allowedLimit - count)
   });
 });
 
@@ -407,12 +454,13 @@ app.get('/api/system-config', (req, res) => {
 
 // Update System Config (Admin POST)
 app.post('/api/system-config', requireAdmin, (req: AuthRequest, res) => {
-  const { maintenanceMode, announcement, announcementTemplate, announcements } = req.body;
+  const { maintenanceMode, announcement, announcementTemplate, announcements, guestUploadLimit } = req.body;
   const updated = db.updateSystemConfig({
     maintenanceMode: maintenanceMode === true,
     announcement: announcement === undefined ? null : announcement,
     announcementTemplate: announcementTemplate === undefined ? null : announcementTemplate,
-    announcements: Array.isArray(announcements) ? announcements : []
+    announcements: Array.isArray(announcements) ? announcements : [],
+    guestUploadLimit: typeof guestUploadLimit === 'number' ? guestUploadLimit : 5
   });
   res.json(updated);
 });
@@ -441,6 +489,102 @@ app.delete('/api/admin/images/:id', requireAdmin, async (req: AuthRequest, res) 
 
   db.deleteImage(req.params.id);
   res.json({ success: true, message: 'Resim yönetici tarafından başarıyla silindi.' });
+});
+
+// ================= ABUSE REPORTS (DMCA / VIOLATIONS) =================
+
+// Public Submit Abuse Report
+app.post('/api/reports', (req, res) => {
+  const { imageId, imageUrl, reporterName, reporterEmail, reason, description } = req.body;
+  if (!reporterName || !reporterEmail || !reason || !description) {
+    return res.status(400).json({ error: 'Lütfen tüm alanları doldurun.' });
+  }
+  const report = db.addReport({
+    imageId: imageId || null,
+    imageUrl: imageUrl || null,
+    reporterName,
+    reporterEmail,
+    reason,
+    description
+  });
+  res.status(201).json({ success: true, report });
+});
+
+// Admin Get All Reports
+app.get('/api/admin/reports', requireAdmin, (req: AuthRequest, res) => {
+  res.json({ reports: db.getReports() });
+});
+
+// Admin Update Report Status
+app.post('/api/admin/reports/:id/status', requireAdmin, (req: AuthRequest, res) => {
+  const { status } = req.body;
+  if (status !== 'pending' && status !== 'resolved') {
+    return res.status(400).json({ error: 'Geçersiz durum.' });
+  }
+  const updated = db.updateReportStatus(req.params.id, status);
+  if (!updated) {
+    return res.status(404).json({ error: 'Rapor bulunamadı.' });
+  }
+  res.json({ success: true, report: updated });
+});
+
+// Admin Delete Report
+app.delete('/api/admin/reports/:id', requireAdmin, (req: AuthRequest, res) => {
+  const deleted = db.deleteReport(req.params.id);
+  if (!deleted) {
+    return res.status(404).json({ error: 'Rapor bulunamadı.' });
+  }
+  res.json({ success: true, message: 'Rapor silindi.' });
+});
+
+// ================= SUPPORT MESSAGES (CONTACT) =================
+
+// Public Submit Support Message
+app.post('/api/support-messages', (req, res) => {
+  const { name, email, subject, message } = req.body;
+  if (!name || !email || !subject || !message) {
+    return res.status(400).json({ error: 'Lütfen tüm alanları doldurun.' });
+  }
+  const msg = db.addSupportMessage({
+    name,
+    email,
+    subject,
+    message
+  });
+  res.status(201).json({ success: true, message: msg });
+});
+
+// Admin Get All Support Messages
+app.get('/api/admin/support-messages', requireAdmin, (req: AuthRequest, res) => {
+  res.json({ messages: db.getSupportMessages() });
+});
+
+// Admin Update Support Message Status
+app.post('/api/admin/support-messages/:id/status', requireAdmin, (req: AuthRequest, res) => {
+  const { status } = req.body;
+  if (status !== 'unread' && status !== 'read' && status !== 'resolved') {
+    return res.status(400).json({ error: 'Geçersiz durum.' });
+  }
+  const updated = db.updateSupportMessageStatus(req.params.id, status);
+  if (!updated) {
+    return res.status(404).json({ error: 'Mesaj bulunamadı.' });
+  }
+  res.json({ success: true, message: updated });
+});
+
+// Admin Delete Support Message
+app.delete('/api/admin/support-messages/:id', requireAdmin, (req: AuthRequest, res) => {
+  const deleted = db.deleteSupportMessage(req.params.id);
+  if (!deleted) {
+    return res.status(404).json({ error: 'Mesaj bulunamadı.' });
+  }
+  res.json({ success: true, message: 'Mesaj silindi.' });
+});
+
+// Admin Reset All Guest Counters
+app.post('/api/admin/reset-guest-uploads', requireAdmin, (req: AuthRequest, res) => {
+  db.resetAllGuestUploads();
+  res.json({ success: true, message: 'Tüm misafir yükleme limitleri sıfırlandı.' });
 });
 
 // ================= VITE OR STATIC SERVING =================

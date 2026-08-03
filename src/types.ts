@@ -26,6 +26,28 @@ export interface Announcement {
   createdAt: string;
 }
 
+export interface AbuseReport {
+  id: string;
+  imageId?: string | null;
+  imageUrl?: string | null;
+  reporterName: string;
+  reporterEmail: string;
+  reason: string;
+  description: string;
+  status: 'pending' | 'resolved';
+  createdAt: string;
+}
+
+export interface SupportMessage {
+  id: string;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  status: 'unread' | 'read' | 'resolved';
+  createdAt: string;
+}
+
 export interface SystemStatus {
   isCloudinaryConfigured: boolean;
   localFallbackActive: boolean;
@@ -33,6 +55,7 @@ export interface SystemStatus {
   announcement: string | null;
   announcementTemplate: string | null;
   announcements?: Announcement[];
+  guestUploadLimit?: number;
 }
 
-export type ViewType = 'home' | 'my-images' | 'login' | 'register' | 'detail' | 'admin';
+export type ViewType = 'home' | 'my-images' | 'login' | 'register' | 'detail' | 'admin' | 'hakkimizda' | 'sartlar' | 'yardim';

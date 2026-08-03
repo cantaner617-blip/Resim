@@ -1,4 +1,4 @@
-import { useState, useRef, DragEvent, ChangeEvent } from 'react';
+import { useState, useEffect, useRef, DragEvent, ChangeEvent } from 'react';
 import { Upload, FileImage, Copy, Check, Eye, Link as LinkIcon, Code, MessageSquare, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User, SystemStatus } from '../types';
@@ -25,8 +25,34 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<UploadedResult | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [guestStats, setGuestStats] = useState<{ count: number; limit: number; remaining: number } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchGuestStats = async () => {
+    try {
+      const headers: Record<string, string> = {};
+      let guestUuid = localStorage.getItem('guest_uuid');
+      if (guestUuid) {
+        headers['X-Guest-UUID'] = guestUuid;
+      }
+      const response = await fetch('/api/guest-stats', { headers });
+      if (response.ok) {
+        const data = await response.json();
+        setGuestStats(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch guest stats:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (!user) {
+      fetchGuestStats();
+    } else {
+      setGuestStats(null);
+    }
+  }, [user]);
 
   const handleDrag = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -75,6 +101,12 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
       return;
     }
 
+    // Guest remaining limit check
+    if (!user && guestStats && guestStats.remaining <= 0) {
+      setError(`Misafir yükleme limitine ulaştınız! Misafir olarak en fazla ${guestStats.limit} resim yükleyebilirsiniz. Hemen ücretsiz kayıt olarak sınırsız yüklemeye başlayın!`);
+      return;
+    }
+
     // Dynamic file size check: 20MB for guests, 100MB for logged in users
     const limitMb = user ? 100 : 20;
     const maxSize = limitMb * 1024 * 1024;
@@ -95,6 +127,15 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
       const token = localStorage.getItem('token');
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
+      } else {
+        let guestUuid = localStorage.getItem('guest_uuid');
+        if (!guestUuid) {
+          guestUuid = typeof crypto.randomUUID === 'function' 
+            ? crypto.randomUUID() 
+            : Math.random().toString(36).substring(2) + Date.now().toString(36);
+          localStorage.setItem('guest_uuid', guestUuid);
+        }
+        headers['X-Guest-UUID'] = guestUuid;
       }
 
       const response = await fetch('/api/upload', {
@@ -110,6 +151,9 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
       }
 
       setResult(data);
+      if (!user) {
+        fetchGuestStats();
+      }
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Yükleme sırasında teknik bir sorun oluştu.");
@@ -243,6 +287,74 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
                 Şu anda Cloudinary API anahtarları tanımlanmadığı için resimler yerel veritabanınızda geçici olarak saklanmaktadır. Kalıcı bulut depolama için lütfen Cloudinary bilgilerinizi secrets paneline ekleyin.
               </div>
             </div>
+          )}
+
+          {/* Guest Limit & Progress Bar Widget */}
+          {!user && guestStats && (
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
+              className="rounded-2xl border border-zinc-900 bg-zinc-950/45 p-5 space-y-3.5 shadow-lg relative overflow-hidden"
+              id="guest-progress-widget"
+            >
+              {/* Decorative soft backdrop glow */}
+              <div className="absolute top-0 right-0 h-32 w-32 bg-teal-500/5 rounded-full filter blur-xl pointer-events-none"></div>
+              
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="flex h-2 w-2 rounded-full bg-teal-400 animate-pulse"></span>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                      Misafir Yükleme Limiti
+                    </h4>
+                  </div>
+                  <p className="text-xs text-zinc-400">
+                    Sisteme kayıt olmadan resim yüklüyorsunuz. Kalan yükleme hakkınız: <span className="text-teal-400 font-extrabold">{guestStats.remaining}</span> adet.
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-sm font-black text-white">
+                    {guestStats.count} <span className="text-zinc-500">/ {guestStats.limit}</span>
+                  </div>
+                  <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Yüklenen Resim</span>
+                </div>
+              </div>
+
+              {/* Progress Bar Container */}
+              <div className="relative h-3 w-full overflow-hidden rounded-full bg-zinc-900 border border-zinc-800/60 p-0.5">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(100, (guestStats.count / guestStats.limit) * 100)}%` }}
+                  transition={{ duration: 1, ease: "easeOut" }}
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    guestStats.remaining === 0 
+                      ? 'bg-red-500' 
+                      : guestStats.remaining <= 1 
+                        ? 'bg-amber-500' 
+                        : 'bg-gradient-to-r from-teal-500 to-emerald-400'
+                  }`}
+                />
+              </div>
+
+              {/* Limit Status Alerts */}
+              {guestStats.remaining === 0 ? (
+                <div className="text-[11px] text-red-400 font-medium flex items-center gap-1.5 pt-0.5">
+                  <span className="text-sm">⚠️</span>
+                  <span>Misafir limitiniz doldu! Sınırsız yükleme hakkı ve yüksek boyut limiti için hemen ücretsiz üye olun.</span>
+                </div>
+              ) : guestStats.remaining <= 1 ? (
+                <div className="text-[11px] text-amber-400 font-medium flex items-center gap-1.5 pt-0.5 animate-pulse">
+                  <span className="text-sm">⚡</span>
+                  <span>Son 1 yükleme hakkınız kaldı! Ücretsiz üye olarak 100 MB limitiyle sınırsız yüklemeye geçin.</span>
+                </div>
+              ) : (
+                <div className="text-[11px] text-zinc-500 flex items-center gap-1 pt-0.5">
+                  <span>💡</span>
+                  <span>Saniyeler içinde kayıt olarak 100 MB üye boyut limitinden faydalanabilirsiniz.</span>
+                </div>
+              )}
+            </motion.div>
           )}
         </div>
       ) : (

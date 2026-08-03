@@ -191,6 +191,18 @@ export default function ImageDetail({ id, onBack }: ImageDetailProps) {
             </div>
           </div>
 
+          {/* Abuse Report Block */}
+          <div className="rounded-2xl border border-red-950/30 bg-red-950/5 p-4 text-center space-y-2">
+            <p className="text-xs text-zinc-400">Bu görselin telif hakkınızı veya topluluk kurallarını ihlal ettiğini mi düşünüyorsunuz?</p>
+            <a
+              href={`/ihbar?imageId=${image.id}&imageUrl=${encodeURIComponent(image.url)}`}
+              className="inline-flex items-center space-x-1.5 text-xs font-bold text-red-400 hover:text-red-300 hover:underline"
+            >
+              <AlertCircle className="h-3.5 w-3.5" />
+              <span>Görseli İhbar Et / Kötüye Kullanım Bildir</span>
+            </a>
+          </div>
+
           {/* Sharing URLs block */}
           <div className="rounded-2xl border border-zinc-900 bg-zinc-950/40 p-5 space-y-4 shadow-sm">
             <h2 className="text-sm font-bold text-white tracking-tight">Paylaşım ve Embed Kodları</h2>
