@@ -13,10 +13,11 @@ import {
   Eye as EyeIcon, 
   AlertTriangle,
   RefreshCw,
-  Clock
+  Clock,
+  Plus
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { User, ImageRecord, SystemStatus } from '../types';
+import { User, ImageRecord, SystemStatus, Announcement } from '../types';
 
 interface AdminPanelProps {
   user: User | null;
@@ -42,8 +43,9 @@ export default function AdminPanel({ user }: AdminPanelProps) {
   
   // System Config State
   const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [announcementsList, setAnnouncementsList] = useState<Announcement[]>([]);
   const [announcement, setAnnouncement] = useState('');
-  const [announcementTemplate, setAnnouncementTemplate] = useState<'info' | 'warning' | 'success' | 'none'>('none');
+  const [announcementTemplate, setAnnouncementTemplate] = useState<'info' | 'warning' | 'success'>('info');
 
   // Ready-Made Announcement Templates
   const readyTemplates = [
@@ -78,8 +80,7 @@ export default function AdminPanel({ user }: AdminPanelProps) {
       const statusData = await statusRes.json();
       if (statusRes.ok) {
         setMaintenanceMode(statusData.maintenanceMode || false);
-        setAnnouncement(statusData.announcement || '');
-        setAnnouncementTemplate(statusData.announcementTemplate || 'none');
+        setAnnouncementsList(statusData.announcements || []);
       }
 
       // 2. Fetch all images
@@ -139,8 +140,9 @@ export default function AdminPanel({ user }: AdminPanelProps) {
         },
         body: JSON.stringify({
           maintenanceMode,
-          announcement: announcement.trim() || null,
-          announcementTemplate: announcementTemplate === 'none' ? null : announcementTemplate
+          announcements: announcementsList,
+          announcement: announcementsList.length > 0 ? announcementsList[0].message : null,
+          announcementTemplate: announcementsList.length > 0 ? announcementsList[0].template : null
         })
       });
 
@@ -149,7 +151,6 @@ export default function AdminPanel({ user }: AdminPanelProps) {
         throw new Error(data.error || "Ayarlar kaydedilemedi.");
       }
 
-      // Show temporary custom success alert or reload config
       alert("Sistem ayarları başarıyla güncellendi!");
       fetchAdminData();
     } catch (err: any) {
@@ -157,6 +158,23 @@ export default function AdminPanel({ user }: AdminPanelProps) {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleAddAnnouncement = () => {
+    if (!announcement.trim()) return;
+    const newAnn: Announcement = {
+      id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9),
+      message: announcement.trim(),
+      template: announcementTemplate,
+      createdAt: new Date().toISOString()
+    };
+    setAnnouncementsList(prev => [newAnn, ...prev]);
+    setAnnouncement('');
+    setAnnouncementTemplate('info');
+  };
+
+  const handleRemoveAnnouncement = (id: string) => {
+    setAnnouncementsList(prev => prev.filter(item => item.id !== id));
   };
 
   // Delete any image as Admin
@@ -191,11 +209,6 @@ export default function AdminPanel({ user }: AdminPanelProps) {
   const applyTemplate = (text: string, type: 'info' | 'warning' | 'success') => {
     setAnnouncement(text);
     setAnnouncementTemplate(type);
-  };
-
-  const clearAnnouncement = () => {
-    setAnnouncement('');
-    setAnnouncementTemplate('none');
   };
 
   if (loading) {
@@ -319,26 +332,15 @@ export default function AdminPanel({ user }: AdminPanelProps) {
             </div>
 
             {/* Announcement Editor */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-bold text-white flex items-center gap-1.5">
-                  <Megaphone className="h-4 w-4 text-teal-400" />
-                  Aktif Sistem Duyurusu
-                </label>
-                {announcement && (
-                  <button 
-                    type="button" 
-                    onClick={clearAnnouncement}
-                    className="text-xs text-red-400 hover:text-red-300 font-semibold"
-                  >
-                    Duyuruyu Temizle
-                  </button>
-                )}
-              </div>
+            <div className="space-y-6">
+              <label className="text-sm font-bold text-white flex items-center gap-1.5 border-b border-zinc-900 pb-2">
+                <Megaphone className="h-4 w-4 text-teal-400" />
+                Duyuru Oluştur & Yayınla
+              </label>
 
               {/* Ready Made Templates list */}
               <div className="space-y-1.5">
-                <span className="text-xs font-semibold text-zinc-500">Hazır Duyuru Taslakları:</span>
+                <span className="text-xs font-semibold text-zinc-500">Hazır Duyuru Şablonları:</span>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {readyTemplates.map((t) => (
                     <button
@@ -354,39 +356,99 @@ export default function AdminPanel({ user }: AdminPanelProps) {
                 </div>
               </div>
 
-              <textarea
-                value={announcement}
-                onChange={(e) => setAnnouncement(e.target.value)}
-                placeholder="Site genelinde gösterilecek duyuru metnini buraya girin veya yukarıdaki taslaklardan birini seçin..."
-                rows={4}
-                className="w-full rounded-xl border border-zinc-800 bg-zinc-900/25 p-3 text-sm text-zinc-200 placeholder-zinc-600 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
-              />
+              <div className="space-y-3 bg-zinc-950/45 rounded-xl border border-zinc-900 p-4">
+                <span className="text-xs font-bold text-zinc-300 block">Yeni Duyuru Ekle</span>
+                
+                <textarea
+                  value={announcement}
+                  onChange={(e) => setAnnouncement(e.target.value)}
+                  placeholder="Duyuru metnini buraya girin veya yukarıdaki taslaklardan birini seçin..."
+                  rows={3}
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-900/25 p-3 text-sm text-zinc-200 placeholder-zinc-600 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                />
 
-              {announcement && (
-                <div className="space-y-2">
-                  <span className="text-xs font-semibold text-zinc-500 block">Duyuru Stili (Şablon):</span>
-                  <div className="flex gap-2">
-                    {[
-                      { key: 'info', label: 'Bilgi (Mavi)', bg: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
-                      { key: 'warning', label: 'Uyarı (Sarı)', bg: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
-                      { key: 'success', label: 'Başarı (Yeşil)', bg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' }
-                    ].map((style) => (
-                      <button
-                        key={style.key}
-                        type="button"
-                        onClick={() => setAnnouncementTemplate(style.key as any)}
-                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
-                          announcementTemplate === style.key 
-                            ? `${style.bg} ring-2 ring-teal-500` 
-                            : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-1">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-semibold text-zinc-500 block uppercase">Şablon Stili</span>
+                    <div className="flex gap-2">
+                      {[
+                        { key: 'info', label: 'Bilgi (Mavi)', bg: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
+                        { key: 'warning', label: 'Uyarı (Sarı)', bg: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
+                        { key: 'success', label: 'Başarı (Yeşil)', bg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' }
+                      ].map((style) => (
+                        <button
+                          key={style.key}
+                          type="button"
+                          onClick={() => setAnnouncementTemplate(style.key as any)}
+                          className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-all ${
+                            announcementTemplate === style.key 
+                              ? `${style.bg} ring-1 ring-teal-500` 
+                              : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
+                          }`}
+                        >
+                          {style.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleAddAnnouncement}
+                    disabled={!announcement.trim()}
+                    className="w-full sm:w-auto flex items-center justify-center space-x-1.5 rounded-lg bg-teal-500 hover:bg-teal-400 text-zinc-950 font-bold text-xs px-4 py-2 disabled:opacity-40 transition-all cursor-pointer self-end"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Duyuru Listesine Ekle</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Active Announcements List */}
+              <div className="space-y-2">
+                <span className="text-xs font-bold text-white flex items-center gap-1">
+                  <span>Aktif Duyurular Listesi ({announcementsList.length})</span>
+                </span>
+                
+                {announcementsList.length > 0 ? (
+                  <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                    {announcementsList.map((item, index) => (
+                      <div 
+                        key={item.id} 
+                        className={`flex items-start justify-between gap-3 p-3 rounded-xl border text-xs relative overflow-hidden ${
+                          item.template === 'success' 
+                            ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-300' 
+                            : item.template === 'warning' 
+                              ? 'bg-amber-500/5 border-amber-500/20 text-amber-300' 
+                              : 'bg-blue-500/5 border-blue-500/20 text-blue-300'
                         }`}
                       >
-                        {style.label}
-                      </button>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-extrabold uppercase tracking-widest text-[9px] px-1.5 py-0.5 rounded bg-zinc-900/80 text-zinc-300">
+                              #{announcementsList.length - index} {item.template === 'success' ? 'Duyuru' : item.template === 'warning' ? 'Önemli' : 'Bilgi'}
+                            </span>
+                            <span className="text-[10px] text-zinc-500">{new Date(item.createdAt).toLocaleTimeString()}</span>
+                          </div>
+                          <p className="font-medium whitespace-pre-line leading-relaxed break-words">{item.message}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveAnnouncement(item.id)}
+                          className="text-zinc-500 hover:text-red-400 p-1 rounded-lg hover:bg-white/5 transition-colors shrink-0"
+                          title="Sil"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div className="rounded-xl border border-dashed border-zinc-850 p-4 text-center text-xs text-zinc-500">
+                    Şu anda listede yayınlanacak hiç duyuru bulunmuyor. Yeni bir tane ekleyip aşağıdaki butondan kaydedebilirsiniz.
+                  </div>
+                )}
+              </div>
             </div>
 
             <button
@@ -411,22 +473,29 @@ export default function AdminPanel({ user }: AdminPanelProps) {
         <div className="space-y-6">
           <div className="rounded-2xl border border-zinc-900 bg-zinc-950/20 p-6 space-y-4">
             <h2 className="text-sm font-bold text-white flex items-center gap-1.5 uppercase tracking-wide">
-              <span>👀 Duyuru Canlı Önizleme</span>
+              <span>👀 Duyuru Paneli Önizleme ({announcementsList.length})</span>
             </h2>
 
-            {announcement ? (
-              <div className={`rounded-xl border p-4 text-xs space-y-2 ${
-                announcementTemplate === 'success' 
-                  ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' 
-                  : announcementTemplate === 'warning'
-                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
-                    : 'bg-blue-500/10 text-blue-300 border-blue-500/20'
-              }`}>
-                <div className="flex items-center gap-2 font-bold uppercase tracking-wider text-[10px]">
-                  <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse"></span>
-                  {announcementTemplate === 'success' ? 'Başarılı / Güncelleme' : announcementTemplate === 'warning' ? 'Önemli Uyarı' : 'Sistem Bilgilendirmesi'}
-                </div>
-                <p className="leading-relaxed whitespace-pre-line font-medium">{announcement}</p>
+            {announcementsList.length > 0 ? (
+              <div className="space-y-2.5 max-h-[400px] overflow-y-auto pr-1">
+                {announcementsList.map((item) => (
+                  <div 
+                    key={item.id}
+                    className={`rounded-xl border p-3.5 text-xs space-y-1.5 ${
+                      item.template === 'success' 
+                        ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' 
+                        : item.template === 'warning'
+                          ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                          : 'bg-blue-500/10 text-blue-300 border-blue-500/20'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 font-bold uppercase tracking-wider text-[9px]">
+                      <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse"></span>
+                      {item.template === 'success' ? 'Başarılı / Güncelleme' : item.template === 'warning' ? 'Önemli Uyarı' : 'Sistem Bilgilendirmesi'}
+                    </div>
+                    <p className="leading-relaxed whitespace-pre-line font-medium">{item.message}</p>
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="rounded-xl border border-dashed border-zinc-850 p-6 text-center text-xs text-zinc-600">

@@ -395,7 +395,8 @@ app.get('/api/system-status', (req, res) => {
     localFallbackActive: !isCloudinaryConfigured,
     maintenanceMode: sysConfig.maintenanceMode,
     announcement: sysConfig.announcement,
-    announcementTemplate: sysConfig.announcementTemplate
+    announcementTemplate: sysConfig.announcementTemplate,
+    announcements: sysConfig.announcements || []
   });
 });
 
@@ -406,11 +407,12 @@ app.get('/api/system-config', (req, res) => {
 
 // Update System Config (Admin POST)
 app.post('/api/system-config', requireAdmin, (req: AuthRequest, res) => {
-  const { maintenanceMode, announcement, announcementTemplate } = req.body;
+  const { maintenanceMode, announcement, announcementTemplate, announcements } = req.body;
   const updated = db.updateSystemConfig({
     maintenanceMode: maintenanceMode === true,
     announcement: announcement === undefined ? null : announcement,
-    announcementTemplate: announcementTemplate === undefined ? null : announcementTemplate
+    announcementTemplate: announcementTemplate === undefined ? null : announcementTemplate,
+    announcements: Array.isArray(announcements) ? announcements : []
   });
   res.json(updated);
 });

@@ -103,9 +103,10 @@ export default function Navbar({ user, onLogout, systemStatus }: NavbarProps) {
 
           {/* Profile Actions */}
           {user ? (
-            <div className="flex items-center space-x-1 sm:space-x-2 border-l border-zinc-800 pl-1.5 sm:pl-4">
-              <span className="hidden lg:inline-block text-sm text-zinc-400 mr-1">
-                Merhaba, <strong className="text-zinc-200 font-semibold">{user.username}</strong>
+            <div className="flex items-center space-x-2 sm:space-x-3 border-l border-zinc-800/80 pl-2 sm:pl-4">
+              <span className="hidden lg:inline-flex items-center space-x-1 text-xs text-zinc-400">
+                <span>Merhaba,</span>
+                <strong className="text-white font-extrabold px-1.5 py-0.5 rounded-md bg-zinc-900 border border-zinc-800/60">{user.username}</strong>
               </span>
               <button
                 onClick={() => {
@@ -113,30 +114,30 @@ export default function Navbar({ user, onLogout, systemStatus }: NavbarProps) {
                   navigate('/');
                 }}
                 id="nav-logout-btn"
-                className="flex items-center space-x-1.5 rounded-lg border border-zinc-800 bg-zinc-900 px-2 sm:px-3 py-2 text-sm font-medium text-red-400 hover:bg-red-950/20 hover:text-red-300 transition-all duration-200 cursor-pointer"
+                className="flex items-center space-x-1.5 rounded-lg border border-red-950 bg-red-950/10 hover:bg-red-950/30 px-3 py-2 text-xs sm:text-sm font-semibold text-red-400 hover:text-red-300 transition-all duration-200 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
                 title="Çıkış Yap"
               >
-                <LogOut className="h-4 w-4" />
+                <LogOut className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Çıkış Yap</span>
               </button>
             </div>
           ) : (
-            <div className="flex items-center space-x-1 sm:space-x-2 border-l border-zinc-800 pl-1.5 sm:pl-4">
+            <div className="flex items-center space-x-1 sm:space-x-2.5 border-l border-zinc-800/80 pl-2 sm:pl-4">
               <Link
                 to="/giris"
                 id="nav-login-btn"
-                className="flex items-center space-x-1.5 rounded-lg px-2 sm:px-3 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-900 hover:text-white transition-all duration-200"
+                className="flex items-center space-x-1.5 rounded-lg border border-zinc-850 bg-zinc-900/40 px-3 py-2 text-xs sm:text-sm font-semibold text-zinc-300 hover:text-white hover:bg-zinc-900 hover:border-zinc-800 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
               >
-                <LogIn className="h-4 w-4 text-zinc-400" />
+                <LogIn className="h-3.5 w-3.5 text-teal-400" />
                 <span className="hidden sm:inline">Giriş Yap</span>
               </Link>
               
               <Link
                 to="/kayit"
                 id="nav-register-btn"
-                className="flex items-center space-x-1.5 rounded-lg bg-teal-500 px-2 sm:px-3.5 py-2 text-sm font-semibold text-zinc-950 hover:bg-teal-400 active:scale-95 transition-all duration-200"
+                className="flex items-center space-x-1.5 rounded-lg bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 px-3 sm:px-4 py-2 text-xs sm:text-sm font-bold text-zinc-950 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-teal-950/20"
               >
-                <UserPlus className="h-4 w-4" />
+                <UserPlus className="h-3.5 w-3.5 shrink-0" />
                 <span className="hidden sm:inline">Kayıt Ol</span>
               </Link>
             </div>

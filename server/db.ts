@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { initializeApp, getApps } from 'firebase/app';
-import { initializeFirestore, collection, doc, getDocs, getDoc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { initializeFirestore, collection, doc, getDocsFromServer, getDocFromServer, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 
 const DB_FILE = path.join(process.cwd(), 'db.json');
 
@@ -31,10 +31,18 @@ export interface ImageRecord {
   localData?: string; // base64 representation if stored locally
 }
 
+export interface Announcement {
+  id: string;
+  message: string;
+  template: 'info' | 'warning' | 'success';
+  createdAt: string;
+}
+
 export interface SystemConfig {
   maintenanceMode: boolean;
   announcement: string | null;
   announcementTemplate: string | null;
+  announcements?: Announcement[];
 }
 
 interface DatabaseSchema {
@@ -50,7 +58,8 @@ function initDb(): DatabaseSchema {
     systemConfig: {
       maintenanceMode: false,
       announcement: null,
-      announcementTemplate: null
+      announcementTemplate: null,
+      announcements: []
     }
   };
 
@@ -66,8 +75,11 @@ function initDb(): DatabaseSchema {
       parsed.systemConfig = {
         maintenanceMode: false,
         announcement: null,
-        announcementTemplate: null
+        announcementTemplate: null,
+        announcements: []
       };
+    } else if (!parsed.systemConfig.announcements) {
+      parsed.systemConfig.announcements = [];
     }
     return parsed;
   } catch (error) {
@@ -148,7 +160,7 @@ export const db = {
 
       // 1. Sync Users
       const usersCol = collection(fsDb, 'users');
-      const usersSnapshot = await getDocs(usersCol);
+      const usersSnapshot = await getDocsFromServer(usersCol);
       const fsUsers: User[] = [];
       usersSnapshot.forEach((doc) => {
         fsUsers.push(doc.data() as User);
@@ -166,7 +178,7 @@ export const db = {
 
       // 2. Sync Images
       const imagesCol = collection(fsDb, 'images');
-      const imagesSnapshot = await getDocs(imagesCol);
+      const imagesSnapshot = await getDocsFromServer(imagesCol);
       const fsImages: ImageRecord[] = [];
       imagesSnapshot.forEach((doc) => {
         fsImages.push(doc.data() as ImageRecord);
@@ -184,7 +196,7 @@ export const db = {
 
       // 3. Sync System Config
       const configDocRef = doc(fsDb, 'systemConfig', 'config');
-      const configDoc = await getDoc(configDocRef);
+      const configDoc = await getDocFromServer(configDocRef);
       if (configDoc.exists()) {
         dbState.systemConfig = configDoc.data() as SystemConfig;
         console.log("Loaded system configuration from Firestore.");
@@ -325,8 +337,12 @@ export const db = {
       dbState.systemConfig = {
         maintenanceMode: false,
         announcement: null,
-        announcementTemplate: null
+        announcementTemplate: null,
+        announcements: []
       };
+    }
+    if (!dbState.systemConfig.announcements) {
+      dbState.systemConfig.announcements = [];
     }
     return dbState.systemConfig;
   },
@@ -336,13 +352,17 @@ export const db = {
       dbState.systemConfig = {
         maintenanceMode: false,
         announcement: null,
-        announcementTemplate: null
+        announcementTemplate: null,
+        announcements: []
       };
     }
     dbState.systemConfig = {
       ...dbState.systemConfig,
       ...config
     };
+    if (!dbState.systemConfig.announcements) {
+      dbState.systemConfig.announcements = [];
+    }
     saveDb();
 
     if (isFirebaseInitialized && firestore) {
