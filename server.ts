@@ -238,6 +238,23 @@ app.post('/api/upload', optionalAuth, upload.single('image'), async (req: AuthRe
     const format = req.file.mimetype.split('/')[1] || 'png';
     const bytes = req.file.size;
 
+    // Self-destruct time calculation
+    const deleteAfter = req.body.deleteAfter; // '5m', '1h', '1d', '7d', 'never'
+    let expiresAt: string | null = null;
+    if (deleteAfter && deleteAfter !== 'never') {
+      const now = new Date();
+      if (deleteAfter === '5m') {
+        now.setMinutes(now.getMinutes() + 5);
+      } else if (deleteAfter === '1h') {
+        now.setHours(now.getHours() + 1);
+      } else if (deleteAfter === '1d') {
+        now.setDate(now.getDate() + 1);
+      } else if (deleteAfter === '7d') {
+        now.setDate(now.getDate() + 7);
+      }
+      expiresAt = now.toISOString();
+    }
+
     let imageUrl = '';
     let publicId = '';
     let width = 600;
@@ -287,6 +304,8 @@ app.post('/api/upload', optionalAuth, upload.single('image'), async (req: AuthRe
           height,
           isLocal: true,
           localData: base64Data,
+          expiresAt,
+          deleteAfter,
         });
 
         return res.json({
@@ -297,7 +316,9 @@ app.post('/api/upload', optionalAuth, upload.single('image'), async (req: AuthRe
           height: record.height,
           bytes: record.bytes,
           filename: record.filename,
-          isLocalFallback: true
+          isLocalFallback: true,
+          expiresAt: record.expiresAt,
+          deleteAfter: record.deleteAfter,
         });
       }
     } else {
@@ -321,6 +342,8 @@ app.post('/api/upload', optionalAuth, upload.single('image'), async (req: AuthRe
         height,
         isLocal: true,
         localData: base64Data,
+        expiresAt,
+        deleteAfter,
       });
 
       return res.json({
@@ -331,7 +354,9 @@ app.post('/api/upload', optionalAuth, upload.single('image'), async (req: AuthRe
         height: record.height,
         bytes: record.bytes,
         filename: record.filename,
-        isLocalFallback: true
+        isLocalFallback: true,
+        expiresAt: record.expiresAt,
+        deleteAfter: record.deleteAfter,
       });
     }
 
@@ -349,6 +374,8 @@ app.post('/api/upload', optionalAuth, upload.single('image'), async (req: AuthRe
       bytes,
       width,
       height,
+      expiresAt,
+      deleteAfter,
     });
 
     res.json({
@@ -359,6 +386,8 @@ app.post('/api/upload', optionalAuth, upload.single('image'), async (req: AuthRe
       height: record.height,
       bytes: record.bytes,
       filename: record.filename,
+      expiresAt: record.expiresAt,
+      deleteAfter: record.deleteAfter,
     });
   } catch (err: any) {
     console.error('Upload handler error:', err);
@@ -587,9 +616,35 @@ app.post('/api/admin/reset-guest-uploads', requireAdmin, (req: AuthRequest, res)
   res.json({ success: true, message: 'Tüm misafir yükleme limitleri sıfırlandı.' });
 });
 
+// ================= BACKGROUND CLEANUP OF EXPIRED IMAGES =================
+function cleanupExpiredImages() {
+  try {
+    const now = new Date().toISOString();
+    const images = db.getImages();
+    const expired = images.filter(img => img.expiresAt && img.expiresAt <= now);
+    if (expired.length > 0) {
+      console.log(`[CLEANUP] Found ${expired.length} expired images.`);
+      for (const img of expired) {
+        if (isCloudinaryConfigured && img.publicId) {
+          cloudinary.uploader.destroy(img.publicId).catch((err: any) => {
+            console.error(`Failed to destroy expired Cloudinary asset for image ${img.id}:`, err);
+          });
+        }
+        db.deleteImage(img.id);
+        console.log(`[CLEANUP] Successfully deleted expired image: ${img.id}`);
+      }
+    }
+  } catch (err) {
+    console.error("[CLEANUP] Error during expired images cleanup:", err);
+  }
+}
+
 // ================= VITE OR STATIC SERVING =================
 
 async function start() {
+  // Start periodic cleanup of self-destructing/temporary images (runs every 10 seconds)
+  setInterval(cleanupExpiredImages, 10000);
+
   // Initialize and synchronize Firestore with the local database in the background (non-blocking)
   db.initFirestore().then(() => {
     console.log("Firestore database synchronization finished in background.");

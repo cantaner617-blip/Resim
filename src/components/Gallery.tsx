@@ -508,13 +508,7 @@ export default function Gallery({ onSelectImage, user, themeShade = 'midnight', 
                   </div>
                 </div>
 
-                {/* Friendly Info block */}
-                <div className="rounded-xl bg-zinc-900/40 border border-zinc-850 p-4 flex gap-3 text-xs text-zinc-400">
-                  <span className="text-base select-none">💡</span>
-                  <p className="leading-relaxed">
-                    Seçtiğiniz tema tonu tercihiniz tarayıcınızın yerel depolama (<strong className="text-zinc-300 font-semibold">localStorage</strong>) alanına kaydedilir. Böylece sonraki ziyaretlerinizde de tercihiniz korunur.
-                  </p>
-                </div>
+
 
               </div>
             </div>

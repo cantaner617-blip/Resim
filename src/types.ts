@@ -17,6 +17,8 @@ export interface ImageRecord {
   height: number;
   views: number;
   createdAt: string;
+  expiresAt?: string | null;
+  deleteAfter?: string | null;
 }
 
 export interface Announcement {

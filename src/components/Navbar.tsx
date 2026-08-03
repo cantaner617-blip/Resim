@@ -63,7 +63,7 @@ export default function Navbar({ user, onLogout, systemStatus, themeShade }: Nav
             <Image className="h-5 w-5" />
           </div>
           <span className="text-xl font-bold tracking-tight text-white group-hover:text-teal-400 transition-colors duration-300">
-            Resim<span className="text-teal-400">Yükle</span>
+            Anında<span className="text-teal-400">Resim</span>
           </span>
         </Link>
 

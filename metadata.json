@@ -1,5 +1,5 @@
 {
-  "name": "Resim Yükle",
+  "name": "AnındaResim",
   "description": "Karanlık temalı, üyelikli veya üyeliksiz hızlı resim yükleme ve paylaşma platformu.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

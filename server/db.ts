@@ -29,6 +29,8 @@ export interface ImageRecord {
   createdAt: string;
   isLocal?: boolean; // indicates if served locally
   localData?: string; // base64 representation if stored locally
+  expiresAt?: string | null;
+  deleteAfter?: string | null;
 }
 
 export interface Announcement {

@@ -13,6 +13,36 @@ export default function ImageDetail({ id, onBack }: ImageDetailProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [timeLeft, setTimeLeft] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!image?.expiresAt) return;
+
+    const calculateTimeLeft = () => {
+      const difference = +new Date(image.expiresAt!) - +new Date();
+      if (difference <= 0) {
+        setTimeLeft("Süresi Doldu (Siliniyor...)");
+        return;
+      }
+
+      const minutes = Math.floor((difference / 1000 / 60) % 60);
+      const hours = Math.floor((difference / (1000 * 60 * 60)) % 24);
+      const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+      const seconds = Math.floor((difference / 1000) % 60);
+
+      const parts = [];
+      if (days > 0) parts.push(`${days}g`);
+      if (hours > 0) parts.push(`${hours}s`);
+      if (minutes > 0) parts.push(`${minutes}dk`);
+      if (seconds > 0 || parts.length === 0) parts.push(`${seconds}sn`);
+
+      setTimeLeft(parts.join(' '));
+    };
+
+    calculateTimeLeft();
+    const interval = setInterval(calculateTimeLeft, 1000);
+    return () => clearInterval(interval);
+  }, [image?.expiresAt]);
 
   useEffect(() => {
     const fetchImageDetail = async () => {
@@ -163,6 +193,16 @@ export default function ImageDetail({ id, onBack }: ImageDetailProps) {
           {/* Metadata details block */}
           <div className="rounded-2xl border border-zinc-900 bg-zinc-950/40 p-5 space-y-4 shadow-sm">
             <h1 className="text-lg font-bold text-white leading-snug break-all line-clamp-2">{image.filename}</h1>
+            
+            {image.expiresAt && (
+              <div className="rounded-xl bg-amber-500/10 border border-amber-500/25 p-3 flex items-start gap-2.5 text-xs text-amber-400">
+                <span className="text-base shrink-0">⏳</span>
+                <div className="flex-1">
+                  <strong className="font-bold block text-amber-300 mb-0.5">Süreli Görsel (Kendi Kendini Silen)</strong>
+                  Görselin sunucularımızdan tamamen silinmesine kalan süre: <span className="font-mono font-bold text-white bg-zinc-900 px-1.5 py-0.5 rounded ml-1 border border-zinc-800">{timeLeft || 'hesaplanıyor...'}</span>
+                </div>
+              </div>
+            )}
             
             <div className="space-y-2.5 border-t border-zinc-900 pt-4">
               <div className="flex items-center justify-between text-xs text-zinc-400">

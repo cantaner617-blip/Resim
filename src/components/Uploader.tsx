@@ -19,6 +19,65 @@ interface UploadedResult {
   bytes: number;
 }
 
+const applyWatermark = (file: File, text: string): Promise<File> => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(file);
+          return;
+        }
+        // Draw original image
+        ctx.drawImage(img, 0, 0);
+
+        // Configure watermark style based on image size
+        const size = Math.max(16, Math.floor(img.width * 0.035)); // Adaptive font size (3.5% of width)
+        ctx.font = `bold ${size}px sans-serif`;
+        
+        // Measure text width to align bottom right with some padding
+        const textMetrics = ctx.measureText(text);
+        const paddingX = Math.max(16, img.width * 0.025);
+        const paddingY = Math.max(16, img.height * 0.025);
+        const x = img.width - textMetrics.width - paddingX;
+        const y = img.height - paddingY;
+
+        // Draw outline/shadow for high-contrast readability
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.lineWidth = Math.max(2, size * 0.15);
+        ctx.strokeText(text, x, y);
+
+        // Draw primary text with elegant high-contrast translucent white
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+        ctx.fillText(text, x, y);
+
+        // Export back to a File
+        const format = file.type || 'image/png';
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const watermarkedFile = new File([blob], file.name, {
+              type: format,
+              lastModified: Date.now()
+            });
+            resolve(watermarkedFile);
+          } else {
+            resolve(file);
+          }
+        }, format, 0.92);
+      };
+      img.onerror = () => resolve(file);
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => resolve(file);
+    reader.readAsDataURL(file);
+  });
+};
+
 export default function Uploader({ user, onUploadSuccess, systemStatus }: UploaderProps) {
   const [dragActive, setDragActive] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -26,6 +85,23 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
   const [result, setResult] = useState<UploadedResult | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [guestStats, setGuestStats] = useState<{ count: number; limit: number; remaining: number } | null>(null);
+
+  // Advanced configurations
+  const [isWatermarkEnabled, setIsWatermarkEnabled] = useState<boolean>(() => {
+    return localStorage.getItem('is_watermark_enabled') === 'true';
+  });
+  const [watermarkText, setWatermarkText] = useState<string>(() => {
+    return localStorage.getItem('watermark_text') || 'AnındaResim';
+  });
+  const [deleteAfter, setDeleteAfter] = useState<string>('never');
+
+  useEffect(() => {
+    localStorage.setItem('is_watermark_enabled', String(isWatermarkEnabled));
+  }, [isWatermarkEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem('watermark_text', watermarkText);
+  }, [watermarkText]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -119,8 +195,18 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
     setLoading(true);
     setResult(null);
 
+    let fileToUpload = file;
+    if (isWatermarkEnabled && watermarkText.trim() !== '') {
+      try {
+        fileToUpload = await applyWatermark(file, watermarkText.trim());
+      } catch (watermarkErr) {
+        console.error("Filigran eklenirken hata oluştu, orijinal resim yüklenecek:", watermarkErr);
+      }
+    }
+
     const formData = new FormData();
-    formData.append('image', file);
+    formData.append('image', fileToUpload);
+    formData.append('deleteAfter', deleteAfter);
 
     try {
       const headers: Record<string, string> = {};
@@ -263,6 +349,75 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
                 </motion.div>
               )}
             </AnimatePresence>
+          </div>
+
+          {/* Gelişmiş Seçenekler Paneli */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-2xl border border-zinc-900 bg-zinc-950/20 p-5 shadow-inner">
+            {/* Süreli Resim Seçeneği */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
+                <span className="text-sm">⏳</span> Depolama Süresi (Kendi Kendini Silme)
+              </label>
+              <div className="relative">
+                <select
+                  value={deleteAfter}
+                  onChange={(e) => setDeleteAfter(e.target.value)}
+                  className="w-full appearance-none rounded-xl border border-zinc-800 bg-zinc-900/60 px-3.5 py-2.5 text-xs text-zinc-200 focus:border-teal-500 focus:outline-none pr-10 cursor-pointer"
+                  id="delete-after-select"
+                >
+                  <option value="never">Kalıcı (Silinmez)</option>
+                  <option value="5m">Yüklemeden 5 Dakika Sonra Sil</option>
+                  <option value="1h">Yüklemeden 1 Saat Sonra Sil</option>
+                  <option value="1d">Yüklemeden 1 Gün Sonra Sil</option>
+                  <option value="7d">Yüklemeden 7 Gün Sonra Sil</option>
+                </select>
+                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500 text-[9px]">
+                  ▼
+                </div>
+              </div>
+              <p className="text-[11px] text-zinc-500 leading-normal">
+                Resminizin belirtilen süre sonunda sunucularımızdan kalıcı olarak silinmesini sağlar.
+              </p>
+            </div>
+
+            {/* Filigran Ekleme Seçeneği */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
+                  <span className="text-sm">✍️</span> Görsele Filigran (Watermark) Ekle
+                </label>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isWatermarkEnabled}
+                    onChange={(e) => setIsWatermarkEnabled(e.target.checked)}
+                    className="sr-only peer"
+                    id="watermark-toggle-checkbox"
+                  />
+                  <div className="w-8 h-4 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-400 after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-teal-500 peer-checked:after:bg-zinc-950 peer-checked:after:border-teal-400"></div>
+                </label>
+              </div>
+
+              <div className="transition-all duration-300">
+                <input
+                  type="text"
+                  disabled={!isWatermarkEnabled}
+                  value={watermarkText}
+                  onChange={(e) => setWatermarkText(e.target.value)}
+                  placeholder="Örn: AnındaResim"
+                  maxLength={40}
+                  className={`w-full rounded-xl border px-3.5 py-2 text-xs transition-all focus:outline-none focus:border-teal-500 ${
+                    isWatermarkEnabled
+                      ? 'border-zinc-800 bg-zinc-900/60 text-zinc-200'
+                      : 'border-zinc-900/40 bg-zinc-950/20 text-zinc-600 cursor-not-allowed'
+                  }`}
+                  id="watermark-text-input"
+                />
+              </div>
+              <p className="text-[11px] text-zinc-500 leading-normal">
+                Görselinizin sağ alt köşesine yarı saydam koruyucu imza/metin ekler.
+              </p>
+            </div>
           </div>
 
           {/* Error Message */}
