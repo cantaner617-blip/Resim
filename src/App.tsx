@@ -20,8 +20,21 @@ export default function App() {
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const [loadingSession, setLoadingSession] = useState(true);
   const [dismissedAnnouncements, setDismissedAnnouncements] = useState<string[]>([]);
+  const [themeShade, setThemeShade] = useState<'midnight' | 'slate'>(() => {
+    return (localStorage.getItem('theme-shade') as 'midnight' | 'slate') || 'midnight';
+  });
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Sync body background color with themeShade
+  useEffect(() => {
+    document.body.style.backgroundColor = themeShade === 'midnight' ? '#030712' : '#0f172a';
+  }, [themeShade]);
+
+  const handleThemeShadeChange = (shade: 'midnight' | 'slate') => {
+    setThemeShade(shade);
+    localStorage.setItem('theme-shade', shade);
+  };
 
   // Load active session and check system status
   const fetchSystemStatus = async () => {
@@ -162,13 +175,14 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-200 selection:bg-teal-500 selection:text-zinc-950 flex flex-col justify-between">
+    <div className={`min-h-screen ${themeShade === 'midnight' ? 'bg-[#030712]' : 'bg-[#0f172a]'} text-zinc-200 selection:bg-teal-500 selection:text-zinc-950 flex flex-col justify-between transition-colors duration-300`}>
       
       {/* Navbar wrapper */}
       <Navbar 
         user={user} 
         onLogout={handleLogout}
         systemStatus={systemStatus}
+        themeShade={themeShade}
       />
 
       {/* 📣 Premium Floating Announcement System Alert Banner (Positioned beautifully below the Navbar with custom padding & alignment) */}
@@ -373,7 +387,11 @@ export default function App() {
             {/* Gallery Route (Requires Login) */}
             <Route path="/galerim" element={
               user ? (
-                <Gallery />
+                <Gallery 
+                  user={user}
+                  themeShade={themeShade}
+                  onThemeShadeChange={handleThemeShadeChange}
+                />
               ) : (
                 <Navigate to="/giris" replace />
               )

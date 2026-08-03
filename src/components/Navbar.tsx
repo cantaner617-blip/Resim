@@ -21,9 +21,10 @@ interface NavbarProps {
   user: User | null;
   onLogout: () => void;
   systemStatus: SystemStatus | null;
+  themeShade?: 'midnight' | 'slate';
 }
 
-export default function Navbar({ user, onLogout, systemStatus }: NavbarProps) {
+export default function Navbar({ user, onLogout, systemStatus, themeShade }: NavbarProps) {
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -42,7 +43,14 @@ export default function Navbar({ user, onLogout, systemStatus }: NavbarProps) {
   }, []);
 
   return (
-    <header id="site-header" className="sticky top-0 z-50 w-full border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md">
+    <header 
+      id="site-header" 
+      className={`sticky top-0 z-50 w-full border-b transition-colors duration-300 ${
+        themeShade === 'slate' 
+          ? 'border-slate-800 bg-[#0f172a]/80' 
+          : 'border-zinc-900 bg-[#030712]/80'
+      } backdrop-blur-md`}
+    >
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         
         {/* Logo and Brand */}
@@ -209,10 +217,14 @@ export default function Navbar({ user, onLogout, systemStatus }: NavbarProps) {
           {/* Profile Actions */}
           {user ? (
             <div className="flex items-center space-x-2 sm:space-x-3 border-l border-zinc-800/80 pl-2 sm:pl-4">
-              <span className="hidden lg:inline-flex items-center space-x-1 text-xs text-zinc-400">
+              <Link 
+                to="/galerim?tab=profile"
+                className="hidden lg:inline-flex items-center space-x-1.5 text-xs text-zinc-400 hover:text-teal-400 transition-colors duration-200 group/greeting"
+                title="Profil Ayarları & Tema Seçimi"
+              >
                 <span>Merhaba,</span>
-                <strong className="text-white font-extrabold px-1.5 py-0.5 rounded-md bg-zinc-900 border border-zinc-800/60">{user.username}</strong>
-              </span>
+                <strong className="text-white font-extrabold px-1.5 py-0.5 rounded-md bg-zinc-900 border border-zinc-800/60 group-hover/greeting:bg-zinc-850 group-hover/greeting:border-teal-500/30 transition-all">{user.username}</strong>
+              </Link>
               <button
                 onClick={() => {
                   onLogout();
