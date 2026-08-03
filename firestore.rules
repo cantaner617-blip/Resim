@@ -1,0 +1,24 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny for safety
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Allow read/write access to collections used by the server's db.ts sync engine.
+    // Our Express server proxies all client interactions, so the browser client
+    // never accesses Firestore directly.
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    match /images/{imageId} {
+      allow read, write: if true;
+    }
+
+    match /systemConfig/{configId} {
+      allow read, write: if true;
+    }
+  }
+}
