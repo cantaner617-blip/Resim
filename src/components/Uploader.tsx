@@ -78,6 +78,109 @@ const applyWatermark = (file: File, text: string): Promise<File> => {
   });
 };
 
+interface CompressionResult {
+  file: File;
+  originalSize: number;
+  compressedSize: number;
+  ratio: number;
+}
+
+const compressImage = (
+  file: File,
+  quality: number, // 0 to 100
+  maxWidthOption: string // 'original' | '1280' | '1920' | '2560' | '3840'
+): Promise<CompressionResult> => {
+  return new Promise((resolve) => {
+    // If it's a GIF or SVG, do not compress to avoid losing animations or vector quality
+    if (file.type === 'image/gif' || file.type === 'image/svg+xml') {
+      resolve({ file, originalSize: file.size, compressedSize: file.size, ratio: 0 });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        // Calculate new dimensions if max width is defined and less than current width
+        if (maxWidthOption !== 'original') {
+          const maxDim = parseInt(maxWidthOption, 10);
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve({ file, originalSize: file.size, compressedSize: file.size, ratio: 0 });
+          return;
+        }
+
+        // Use high-quality image smoothing
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
+        // Draw and scale image
+        ctx.drawImage(img, 0, 0, width, height);
+
+        let format = file.type;
+        // If it's BMP, convert to JPEG to compress, otherwise keep format
+        if (format === 'image/bmp') {
+          format = 'image/jpeg';
+        }
+
+        // Quality parameter is between 0 and 1
+        const qFactor = quality / 100;
+
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const ext = format === 'image/jpeg' ? '.jpg' : format === 'image/png' ? '.png' : format === 'image/webp' ? '.webp' : '';
+            let newName = file.name;
+            if (ext) {
+              newName = file.name.replace(/\.[^/.]+$/, "") + ext;
+            }
+            
+            const compressedFile = new File([blob], newName, {
+              type: format,
+              lastModified: Date.now()
+            });
+
+            // If compressed file is indeed smaller, return it
+            if (compressedFile.size < file.size) {
+              const ratio = (file.size - compressedFile.size) / file.size;
+              resolve({
+                file: compressedFile,
+                originalSize: file.size,
+                compressedSize: compressedFile.size,
+                ratio
+              });
+            } else {
+              resolve({ file, originalSize: file.size, compressedSize: file.size, ratio: 0 });
+            }
+          } else {
+            resolve({ file, originalSize: file.size, compressedSize: file.size, ratio: 0 });
+          }
+        }, format, qFactor);
+      };
+      img.onerror = () => resolve({ file, originalSize: file.size, compressedSize: file.size, ratio: 0 });
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => resolve({ file, originalSize: file.size, compressedSize: file.size, ratio: 0 });
+    reader.readAsDataURL(file);
+  });
+};
+
 export default function Uploader({ user, onUploadSuccess, systemStatus }: UploaderProps) {
   const [dragActive, setDragActive] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -90,8 +193,11 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
     id: string;
     filename: string;
     size: number;
-    status: 'pending' | 'watermarking' | 'uploading' | 'completed' | 'failed';
+    status: 'pending' | 'watermarking' | 'compressing' | 'uploading' | 'completed' | 'failed';
     error?: string;
+    compressionRatio?: number;
+    originalSize?: number;
+    compressedSize?: number;
   }
   const [uploadQueue, setUploadQueue] = useState<UploadProgressItem[]>([]);
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -109,6 +215,17 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
   });
   const [deleteAfter, setDeleteAfter] = useState<string>('never');
 
+  // Client-Side Image Compression configuration
+  const [isCompressionEnabled, setIsCompressionEnabled] = useState<boolean>(() => {
+    return localStorage.getItem('is_compression_enabled') !== 'false'; // default to true
+  });
+  const [compressionQuality, setCompressionQuality] = useState<number>(() => {
+    return Number(localStorage.getItem('compression_quality')) || 80;
+  });
+  const [compressionMaxWidth, setCompressionMaxWidth] = useState<string>(() => {
+    return localStorage.getItem('compression_max_width') || 'original';
+  });
+
   useEffect(() => {
     localStorage.setItem('is_watermark_enabled', String(isWatermarkEnabled));
   }, [isWatermarkEnabled]);
@@ -116,6 +233,18 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
   useEffect(() => {
     localStorage.setItem('watermark_text', watermarkText);
   }, [watermarkText]);
+
+  useEffect(() => {
+    localStorage.setItem('is_compression_enabled', String(isCompressionEnabled));
+  }, [isCompressionEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem('compression_quality', String(compressionQuality));
+  }, [compressionQuality]);
+
+  useEffect(() => {
+    localStorage.setItem('compression_max_width', compressionMaxWidth);
+  }, [compressionMaxWidth]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -241,12 +370,50 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
         continue;
       }
 
-      // Process watermark if active
+      // Process client-side compression if active
       let fileToUpload = file;
+      let ratio = 0;
+      let originalSize = file.size;
+      let compressedSize = file.size;
+
+      if (isCompressionEnabled) {
+        try {
+          setUploadQueue(prev => prev.map(item => item.id === queueId ? { ...item, status: 'compressing' } : item));
+          const compResult = await compressImage(file, compressionQuality, compressionMaxWidth);
+          fileToUpload = compResult.file;
+          originalSize = compResult.originalSize;
+          compressedSize = compResult.compressedSize;
+          ratio = compResult.ratio;
+
+          // Update item in queue with compression info
+          setUploadQueue(prev => prev.map(item => 
+            item.id === queueId 
+              ? { 
+                  ...item, 
+                  size: compressedSize, 
+                  compressionRatio: ratio,
+                  originalSize,
+                  compressedSize
+                } 
+              : item
+          ));
+        } catch (compressErr) {
+          console.error("Görsel sıkıştırma başarısız:", compressErr);
+        }
+      }
+
+      // Process watermark if active
       if (isWatermarkEnabled && watermarkText.trim() !== '') {
         try {
           setUploadQueue(prev => prev.map(item => item.id === queueId ? { ...item, status: 'watermarking' } : item));
-          fileToUpload = await applyWatermark(file, watermarkText.trim());
+          fileToUpload = await applyWatermark(fileToUpload, watermarkText.trim());
+          
+          // Re-update size if watermark changed it slightly
+          setUploadQueue(prev => prev.map(item => 
+            item.id === queueId 
+              ? { ...item, size: fileToUpload.size } 
+              : item
+          ));
         } catch (watermarkErr) {
           console.error("Filigran ekleme başarısız:", watermarkErr);
         }
@@ -434,13 +601,22 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
                                 ? 'bg-red-500/10 border-red-500/20 text-red-400'
                                 : item.status === 'uploading'
                                   ? 'bg-teal-500/10 border-teal-500/20 text-teal-400 animate-pulse'
-                                  : 'bg-zinc-900 border-zinc-800 text-zinc-500'
+                                  : item.status === 'compressing'
+                                    ? 'bg-violet-500/10 border-violet-500/20 text-violet-400 animate-pulse'
+                                    : 'bg-zinc-900 border-zinc-800 text-zinc-500'
                           }`}>
                             <FileImage className="h-4 w-4" />
                           </div>
                           <div className="truncate flex-1">
                             <p className="font-semibold text-zinc-200 truncate">{item.filename}</p>
-                            <p className="text-[10px] text-zinc-500 font-mono mt-0.5">{formatSize(item.size)}</p>
+                            <p className="text-[10px] text-zinc-500 font-mono mt-0.5 flex flex-wrap items-center gap-1.5">
+                              <span>{formatSize(item.size)}</span>
+                              {item.compressionRatio !== undefined && item.compressionRatio > 0 && (
+                                <span className="text-emerald-400 font-bold bg-emerald-500/10 px-1 rounded text-[9px]">
+                                  (-{(item.compressionRatio * 100).toFixed(0)}% Sıkıştırıldı)
+                                </span>
+                              )}
+                            </p>
                           </div>
                         </div>
 
@@ -458,6 +634,11 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
                           {item.status === 'uploading' && (
                             <span className="inline-flex items-center rounded-md bg-teal-500/10 px-2 py-0.5 text-[10px] font-bold text-teal-400 ring-1 ring-inset ring-teal-500/20 animate-pulse">
                               Yükleniyor
+                            </span>
+                          )}
+                          {item.status === 'compressing' && (
+                            <span className="inline-flex items-center rounded-md bg-violet-500/10 px-2 py-0.5 text-[10px] font-bold text-violet-400 ring-1 ring-inset ring-violet-500/20 animate-pulse">
+                              Sıkıştırılıyor...
                             </span>
                           )}
                           {item.status === 'watermarking' && (
@@ -541,7 +722,7 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
           </div>
 
           {/* Gelişmiş Seçenekler Paneli */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-2xl border border-zinc-900 bg-zinc-950/20 p-5 shadow-inner">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 rounded-2xl border border-zinc-900 bg-zinc-950/20 p-5 shadow-inner">
             {/* Süreli Resim Seçeneği */}
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
@@ -566,6 +747,73 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
               </div>
               <p className="text-[11px] text-zinc-500 leading-normal">
                 Resminizin belirtilen süre sonunda sunucularımızdan kalıcı olarak silinmesini sağlar.
+              </p>
+            </div>
+
+            {/* Sıkıştırma ve Optimizasyon Seçeneği */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
+                  <span className="text-sm">⚡</span> Tarayıcıda Sıkıştır ve Optimize Et
+                </label>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isCompressionEnabled}
+                    onChange={(e) => setIsCompressionEnabled(e.target.checked)}
+                    className="sr-only peer"
+                    id="compression-toggle-checkbox"
+                  />
+                  <div className="w-8 h-4 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-400 after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-teal-500 peer-checked:after:bg-zinc-950 peer-checked:after:border-teal-400"></div>
+                </label>
+              </div>
+
+              <div className={`space-y-2.5 transition-all duration-300 ${isCompressionEnabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+                {/* Genişlik/Çözünürlük Sınırı */}
+                <div className="space-y-1">
+                  <span className="text-[10px] font-semibold text-zinc-500 uppercase block">Çözünürlük Sınırı (Genişlik)</span>
+                  <div className="relative">
+                    <select
+                      value={compressionMaxWidth}
+                      disabled={!isCompressionEnabled}
+                      onChange={(e) => setCompressionMaxWidth(e.target.value)}
+                      className="w-full appearance-none rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-200 focus:border-teal-500 focus:outline-none pr-8 cursor-pointer"
+                      id="compression-width-select"
+                    >
+                      <option value="original">Orijinal (Sınırsız)</option>
+                      <option value="3840">4K Ultra HD (3840px)</option>
+                      <option value="2560">2K Quad HD (2560px)</option>
+                      <option value="1920">Full HD (1920px)</option>
+                      <option value="1280">HD Ready (1280px)</option>
+                    </select>
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500 text-[8px]">
+                      ▼
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sıkıştırma Kalitesi Slider */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-semibold text-zinc-500 uppercase">Sıkıştırma Kalitesi</span>
+                    <span className="text-[10px] font-bold text-teal-400 font-mono">
+                      %{compressionQuality} {compressionQuality >= 90 ? '(Mükemmel)' : compressionQuality >= 75 ? '(Dengeli)' : '(Yüksek Sıkıştırma)'}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="10"
+                    max="100"
+                    step="5"
+                    value={compressionQuality}
+                    disabled={!isCompressionEnabled}
+                    onChange={(e) => setCompressionQuality(Number(e.target.value))}
+                    className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-teal-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+              <p className="text-[11px] text-zinc-500 leading-normal">
+                Görselleri tarayıcıda akıllıca sıkıştırarak veri tasarrufu ve süper hızlı yükleme sağlar.
               </p>
             </div>
 
