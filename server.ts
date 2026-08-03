@@ -8,7 +8,7 @@ import { db, pwdUtil } from './server/db';
 import { signToken, verifyToken } from './server/token';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json());
 
@@ -434,6 +434,13 @@ app.delete('/api/admin/images/:id', requireAdmin, async (req: AuthRequest, res) 
 // ================= VITE OR STATIC SERVING =================
 
 async function start() {
+  // Initialize and synchronize Firestore with the local database
+  try {
+    await db.initFirestore();
+  } catch (dbErr) {
+    console.error("Failed to initialize database connection/sync:", dbErr);
+  }
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
