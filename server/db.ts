@@ -1,8 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { initializeApp } from 'firebase/app';
-import { initializeFirestore, collection, doc, getDocs, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 
 const DB_FILE = path.join(process.cwd(), 'db.json');
 
@@ -102,29 +102,32 @@ async function initFirestoreConnection() {
 
   // Fallback to environment variables if config file doesn't exist
   const projectId = config?.projectId || process.env.FIREBASE_PROJECT_ID;
-  const apiKey = config?.apiKey || process.env.FIREBASE_API_KEY;
-  const authDomain = config?.authDomain || process.env.FIREBASE_AUTH_DOMAIN;
   const databaseId = config?.firestoreDatabaseId || process.env.FIREBASE_DATABASE_ID || '(default)';
-  const appId = config?.appId || process.env.FIREBASE_APP_ID;
 
-  if (!projectId || !apiKey) {
-    console.log("Firebase credentials not found. Using local db.json database only.");
+  if (!projectId) {
+    console.log("Firebase project ID not found. Using local db.json database only.");
     return null;
   }
 
   try {
-    const app = initializeApp({
-      apiKey,
-      authDomain,
-      projectId,
-      appId
-    });
-    firestore = initializeFirestore(app, {}, databaseId);
-    isFirebaseInitialized = true;
-    console.log(`Firebase Firestore initialized. Database ID: ${databaseId}`);
-    return firestore;
+    let app;
+    if (getApps().length === 0) {
+      app = initializeApp({
+        projectId: projectId,
+      });
+    } else {
+      app = getApps()[0];
+    }
+
+    if (app) {
+      firestore = getFirestore(app, databaseId);
+      isFirebaseInitialized = true;
+      console.log(`Firebase Admin Firestore initialized. Project: ${projectId}, Database ID: ${databaseId}`);
+      return firestore;
+    }
+    return null;
   } catch (error) {
-    console.error("Failed to initialize Firebase app or Firestore:", error);
+    console.error("Failed to initialize Firebase Admin SDK or Firestore:", error);
     return null;
   }
 }
@@ -138,10 +141,10 @@ export const db = {
       console.log("Synchronizing Firestore collections with local database state...");
 
       // 1. Sync Users
-      const usersCol = collection(fsDb, 'users');
-      const usersSnapshot = await getDocs(usersCol);
+      const usersCol = fsDb.collection('users');
+      const usersSnapshot = await usersCol.get();
       const fsUsers: User[] = [];
-      usersSnapshot.forEach(doc => {
+      usersSnapshot.forEach((doc: any) => {
         fsUsers.push(doc.data() as User);
       });
 
@@ -151,15 +154,15 @@ export const db = {
       } else if (dbState.users.length > 0) {
         console.log(`Migrating ${dbState.users.length} local users to Firestore...`);
         for (const user of dbState.users) {
-          await setDoc(doc(fsDb, 'users', user.id), user);
+          await usersCol.doc(user.id).set(user);
         }
       }
 
       // 2. Sync Images
-      const imagesCol = collection(fsDb, 'images');
-      const imagesSnapshot = await getDocs(imagesCol);
+      const imagesCol = fsDb.collection('images');
+      const imagesSnapshot = await imagesCol.get();
       const fsImages: ImageRecord[] = [];
-      imagesSnapshot.forEach(doc => {
+      imagesSnapshot.forEach((doc: any) => {
         fsImages.push(doc.data() as ImageRecord);
       });
 
@@ -169,18 +172,18 @@ export const db = {
       } else if (dbState.images.length > 0) {
         console.log(`Migrating ${dbState.images.length} local images to Firestore...`);
         for (const img of dbState.images) {
-          await setDoc(doc(fsDb, 'images', img.id), img);
+          await imagesCol.doc(img.id).set(img);
         }
       }
 
       // 3. Sync System Config
-      const configDocRef = doc(fsDb, 'systemConfig', 'config');
-      const configDoc = await getDoc(configDocRef);
-      if (configDoc.exists()) {
+      const configDocRef = fsDb.collection('systemConfig').doc('config');
+      const configDoc = await configDocRef.get();
+      if (configDoc.exists) {
         dbState.systemConfig = configDoc.data() as SystemConfig;
         console.log("Loaded system configuration from Firestore.");
       } else {
-        await setDoc(configDocRef, dbState.systemConfig);
+        await configDocRef.set(dbState.systemConfig);
         console.log("Initialized system configuration in Firestore.");
       }
 
@@ -220,7 +223,7 @@ export const db = {
     saveDb();
 
     if (isFirebaseInitialized && firestore) {
-      setDoc(doc(firestore, 'users', newUser.id), newUser).catch(err => {
+      firestore.collection('users').doc(newUser.id).set(newUser).catch((err: any) => {
         console.error("Failed to save user to Firestore:", err);
       });
     }
@@ -251,7 +254,7 @@ export const db = {
     saveDb();
 
     if (isFirebaseInitialized && firestore) {
-      setDoc(doc(firestore, 'images', newImage.id), newImage).catch(err => {
+      firestore.collection('images').doc(newImage.id).set(newImage).catch((err: any) => {
         console.error("Failed to save image to Firestore:", err);
       });
     }
@@ -266,7 +269,7 @@ export const db = {
       saveDb();
 
       if (isFirebaseInitialized && firestore) {
-        setDoc(doc(firestore, 'images', id), img).catch(err => {
+        firestore.collection('images').doc(id).set(img).catch((err: any) => {
           console.error("Failed to update image views in Firestore:", err);
         });
       }
@@ -280,7 +283,7 @@ export const db = {
       saveDb();
 
       if (isFirebaseInitialized && firestore) {
-        deleteDoc(doc(firestore, 'images', id)).catch(err => {
+        firestore.collection('images').doc(id).delete().catch((err: any) => {
           console.error("Failed to delete image from Firestore:", err);
         });
       }
@@ -316,7 +319,7 @@ export const db = {
     saveDb();
 
     if (isFirebaseInitialized && firestore) {
-      setDoc(doc(firestore, 'systemConfig', 'config'), dbState.systemConfig).catch(err => {
+      firestore.collection('systemConfig').doc('config').set(dbState.systemConfig).catch((err: any) => {
         console.error("Failed to update system config in Firestore:", err);
       });
     }
