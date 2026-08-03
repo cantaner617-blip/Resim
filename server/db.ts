@@ -46,6 +46,13 @@ export interface SystemConfig {
   announcementTemplate: string | null;
   announcements?: Announcement[];
   guestUploadLimit?: number; // Configurable guest upload limit, default 5
+  adEnabled?: boolean;
+  adImageUrl?: string;
+  adTargetUrl?: string;
+  adTitle?: string;
+  adDescription?: string;
+  adButtonText?: string;
+  adDuration?: number;
 }
 
 export interface AbuseReport {
@@ -88,7 +95,14 @@ function initDb(): DatabaseSchema {
       announcement: null,
       announcementTemplate: null,
       announcements: [],
-      guestUploadLimit: 5
+      guestUploadLimit: 5,
+      adEnabled: false,
+      adImageUrl: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80",
+      adTargetUrl: "https://ai.studio/build",
+      adTitle: "Sponsorlu Reklam",
+      adDescription: "Resim yükleme hizmetimizi ücretsiz sunabilmemiz için sponsorumuzu ziyaret edin.",
+      adButtonText: "Sponsoru Ziyaret Et",
+      adDuration: 5,
     },
     reports: [],
     supportMessages: [],
@@ -109,7 +123,14 @@ function initDb(): DatabaseSchema {
         announcement: null,
         announcementTemplate: null,
         announcements: [],
-        guestUploadLimit: 5
+        guestUploadLimit: 5,
+        adEnabled: false,
+        adImageUrl: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80",
+        adTargetUrl: "https://ai.studio/build",
+        adTitle: "Sponsorlu Reklam",
+        adDescription: "Resim yükleme hizmetimizi ücretsiz sunabilmemiz için sponsorumuzu ziyaret edin.",
+        adButtonText: "Sponsoru Ziyaret Et",
+        adDuration: 5,
       };
     } else {
       if (!parsed.systemConfig.announcements) {
@@ -117,6 +138,27 @@ function initDb(): DatabaseSchema {
       }
       if (parsed.systemConfig.guestUploadLimit === undefined) {
         parsed.systemConfig.guestUploadLimit = 5;
+      }
+      if (parsed.systemConfig.adEnabled === undefined) {
+        parsed.systemConfig.adEnabled = false;
+      }
+      if (!parsed.systemConfig.adImageUrl) {
+        parsed.systemConfig.adImageUrl = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80";
+      }
+      if (!parsed.systemConfig.adTargetUrl) {
+        parsed.systemConfig.adTargetUrl = "https://ai.studio/build";
+      }
+      if (!parsed.systemConfig.adTitle) {
+        parsed.systemConfig.adTitle = "Sponsorlu Reklam";
+      }
+      if (!parsed.systemConfig.adDescription) {
+        parsed.systemConfig.adDescription = "Resim yükleme hizmetimizi ücretsiz sunabilmemiz için sponsorumuzu ziyaret edin.";
+      }
+      if (!parsed.systemConfig.adButtonText) {
+        parsed.systemConfig.adButtonText = "Sponsoru Ziyaret Et";
+      }
+      if (parsed.systemConfig.adDuration === undefined) {
+        parsed.systemConfig.adDuration = 5;
       }
     }
     // Ensure collections exist

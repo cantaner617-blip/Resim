@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, DragEvent, ChangeEvent } from 'react';
-import { Upload, FileImage, Copy, Check, Eye, Link as LinkIcon, Code, MessageSquare, AlertCircle } from 'lucide-react';
+import { Upload, FileImage, Copy, Check, Eye, Link as LinkIcon, Code, MessageSquare, AlertCircle, SlidersHorizontal, Zap, Signature, Clock, Sparkles, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User, SystemStatus } from '../types';
 
@@ -225,6 +225,24 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
   const [compressionMaxWidth, setCompressionMaxWidth] = useState<string>(() => {
     return localStorage.getItem('compression_max_width') || 'original';
   });
+
+  // Advertisement states
+  const [showAdModal, setShowAdModal] = useState<boolean>(false);
+  const [adCountdown, setAdCountdown] = useState<number>(5);
+
+  useEffect(() => {
+    if (!showAdModal || adCountdown <= 0) return;
+    const interval = setInterval(() => {
+      setAdCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [showAdModal, adCountdown]);
 
   useEffect(() => {
     localStorage.setItem('is_watermark_enabled', String(isWatermarkEnabled));
@@ -469,6 +487,10 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
       setActiveResultIndex(0);
       if (!user) {
         fetchGuestStats();
+      }
+      if (systemStatus?.adEnabled) {
+        setAdCountdown(systemStatus.adDuration !== undefined ? systemStatus.adDuration : 5);
+        setShowAdModal(true);
       }
     } else {
       setError("Seçilen görsellerin hiçbiri yüklenemedi. Lütfen formatları ve boyutları kontrol edin.");
@@ -722,17 +744,20 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
           </div>
 
           {/* Gelişmiş Seçenekler Paneli */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 rounded-2xl border border-zinc-900 bg-zinc-950/20 p-5 shadow-inner">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 rounded-2xl border border-zinc-900 bg-zinc-950/40 p-6 shadow-xl relative overflow-hidden backdrop-blur-sm">
+            {/* Ambient accent top highlight */}
+            <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-teal-500/20 to-transparent"></div>
+            
             {/* Süreli Resim Seçeneği */}
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
-                <span className="text-sm">⏳</span> Depolama Süresi (Kendi Kendini Silme)
+            <div className="space-y-3.5 md:border-r md:border-zinc-900/60 md:pr-6 md:mr-1">
+              <label className="text-xs font-bold uppercase tracking-widest text-zinc-400 flex items-center gap-2">
+                <Clock className="h-4 w-4 text-teal-400" /> Depolama Süresi
               </label>
               <div className="relative">
                 <select
                   value={deleteAfter}
                   onChange={(e) => setDeleteAfter(e.target.value)}
-                  className="w-full appearance-none rounded-xl border border-zinc-800 bg-zinc-900/60 px-3.5 py-2.5 text-xs text-zinc-200 focus:border-teal-500 focus:outline-none pr-10 cursor-pointer"
+                  className="w-full appearance-none rounded-xl border border-zinc-800 bg-zinc-900/40 px-3.5 py-2.5 text-xs text-zinc-200 hover:border-zinc-700 hover:bg-zinc-900/60 focus:border-teal-500/60 focus:ring-1 focus:ring-teal-500/20 focus:outline-none pr-10 cursor-pointer transition-all duration-200"
                   id="delete-after-select"
                 >
                   <option value="never">Kalıcı (Silinmez)</option>
@@ -745,18 +770,18 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
                   ▼
                 </div>
               </div>
-              <p className="text-[11px] text-zinc-500 leading-normal">
-                Resminizin belirtilen süre sonunda sunucularımızdan kalıcı olarak silinmesini sağlar.
+              <p className="text-[11px] text-zinc-500 leading-relaxed">
+                Resminizin belirtilen süre sonunda sunucularımızdan kalıcı olarak ve güvenle silinmesini sağlar.
               </p>
             </div>
 
             {/* Sıkıştırma ve Optimizasyon Seçeneği */}
-            <div className="space-y-2.5">
+            <div className="space-y-3.5 md:border-r md:border-zinc-900/60 md:pr-6 md:mr-1">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
-                  <span className="text-sm">⚡</span> Tarayıcıda Sıkıştır ve Optimize Et
+                <label className="text-xs font-bold uppercase tracking-widest text-zinc-400 flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-teal-400" /> Sıkıştır &amp; Optimize Et
                 </label>
-                <label className="relative inline-flex items-center cursor-pointer">
+                <label className="relative inline-flex items-center cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={isCompressionEnabled}
@@ -764,20 +789,20 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
                     className="sr-only peer"
                     id="compression-toggle-checkbox"
                   />
-                  <div className="w-8 h-4 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-400 after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-teal-500 peer-checked:after:bg-zinc-950 peer-checked:after:border-teal-400"></div>
+                  <div className="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-400 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-teal-500 peer-checked:after:bg-zinc-950 shadow-[inset_0_1px_3px_rgba(0,0,0,0.4)]"></div>
                 </label>
               </div>
 
-              <div className={`space-y-2.5 transition-all duration-300 ${isCompressionEnabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+              <div className={`space-y-3.5 transition-all duration-300 ${isCompressionEnabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
                 {/* Genişlik/Çözünürlük Sınırı */}
-                <div className="space-y-1">
-                  <span className="text-[10px] font-semibold text-zinc-500 uppercase block">Çözünürlük Sınırı (Genişlik)</span>
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider block">Çözünürlük Sınırı</span>
                   <div className="relative">
                     <select
                       value={compressionMaxWidth}
                       disabled={!isCompressionEnabled}
                       onChange={(e) => setCompressionMaxWidth(e.target.value)}
-                      className="w-full appearance-none rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-200 focus:border-teal-500 focus:outline-none pr-8 cursor-pointer"
+                      className="w-full appearance-none rounded-xl border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-xs text-zinc-200 hover:border-zinc-700 hover:bg-zinc-900/60 focus:border-teal-500/60 focus:ring-1 focus:ring-teal-500/20 focus:outline-none pr-8 cursor-pointer transition-all duration-200"
                       id="compression-width-select"
                     >
                       <option value="original">Orijinal (Sınırsız)</option>
@@ -793,9 +818,9 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
                 </div>
 
                 {/* Sıkıştırma Kalitesi Slider */}
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-semibold text-zinc-500 uppercase">Sıkıştırma Kalitesi</span>
+                    <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Kalite Oranı</span>
                     <span className="text-[10px] font-bold text-teal-400 font-mono">
                       %{compressionQuality} {compressionQuality >= 90 ? '(Mükemmel)' : compressionQuality >= 75 ? '(Dengeli)' : '(Yüksek Sıkıştırma)'}
                     </span>
@@ -808,22 +833,22 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
                     value={compressionQuality}
                     disabled={!isCompressionEnabled}
                     onChange={(e) => setCompressionQuality(Number(e.target.value))}
-                    className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-teal-500 focus:outline-none"
+                    className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-teal-500 focus:outline-none bg-gradient-to-r from-teal-500/20 to-teal-500"
                   />
                 </div>
               </div>
-              <p className="text-[11px] text-zinc-500 leading-normal">
-                Görselleri tarayıcıda akıllıca sıkıştırarak veri tasarrufu ve süper hızlı yükleme sağlar.
+              <p className="text-[11px] text-zinc-500 leading-relaxed">
+                Görselleri tarayıcıda akıllıca küçülterek veri tasarrufu sağlar ve anında yüklenmesini kolaylaştırır.
               </p>
             </div>
 
             {/* Filigran Ekleme Seçeneği */}
-            <div className="space-y-2">
+            <div className="space-y-3.5">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
-                  <span className="text-sm">✍️</span> Görsele Filigran (Watermark) Ekle
+                <label className="text-xs font-bold uppercase tracking-widest text-zinc-400 flex items-center gap-2">
+                  <Signature className="h-4 w-4 text-teal-400" /> Görsele Filigran Ekle
                 </label>
-                <label className="relative inline-flex items-center cursor-pointer">
+                <label className="relative inline-flex items-center cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={isWatermarkEnabled}
@@ -831,11 +856,11 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
                     className="sr-only peer"
                     id="watermark-toggle-checkbox"
                   />
-                  <div className="w-8 h-4 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-400 after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-teal-500 peer-checked:after:bg-zinc-950 peer-checked:after:border-teal-400"></div>
+                  <div className="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-400 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-teal-500 peer-checked:after:bg-zinc-950 shadow-[inset_0_1px_3px_rgba(0,0,0,0.4)]"></div>
                 </label>
               </div>
 
-              <div className="transition-all duration-300">
+              <div className="transition-all duration-300 relative">
                 <input
                   type="text"
                   disabled={!isWatermarkEnabled}
@@ -843,16 +868,17 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
                   onChange={(e) => setWatermarkText(e.target.value)}
                   placeholder="Örn: AnındaResim"
                   maxLength={40}
-                  className={`w-full rounded-xl border px-3.5 py-2 text-xs transition-all focus:outline-none focus:border-teal-500 ${
+                  className={`w-full rounded-xl border pl-8 pr-3.5 py-2 text-xs transition-all focus:outline-none focus:border-teal-500/60 focus:ring-1 focus:ring-teal-500/20 ${
                     isWatermarkEnabled
-                      ? 'border-zinc-800 bg-zinc-900/60 text-zinc-200'
+                      ? 'border-zinc-800 bg-zinc-900/40 text-zinc-200 hover:border-zinc-700 hover:bg-zinc-900/60'
                       : 'border-zinc-900/40 bg-zinc-950/20 text-zinc-600 cursor-not-allowed'
                   }`}
                   id="watermark-text-input"
                 />
+                <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold font-mono transition-colors ${isWatermarkEnabled ? 'text-teal-400' : 'text-zinc-600'}`}>T_</span>
               </div>
-              <p className="text-[11px] text-zinc-500 leading-normal">
-                Görselinizin sağ alt köşesine yarı saydam koruyucu imza/metin ekler.
+              <p className="text-[11px] text-zinc-500 leading-relaxed">
+                Görselinizin sağ alt köşesine yarı saydam şık bir koruyucu imza ya da marka metni ekler.
               </p>
             </div>
           </div>
@@ -887,65 +913,80 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, ease: "easeOut" }}
-              className="rounded-2xl border border-zinc-900 bg-zinc-950/45 p-5 space-y-3.5 shadow-lg relative overflow-hidden"
+              className="rounded-2xl border border-zinc-900 bg-zinc-950/60 p-6 space-y-4 shadow-xl relative overflow-hidden backdrop-blur-sm"
               id="guest-progress-widget"
             >
-              {/* Decorative soft backdrop glow */}
-              <div className="absolute top-0 right-0 h-32 w-32 bg-teal-500/5 rounded-full filter blur-xl pointer-events-none"></div>
+              {/* Decorative soft backdrop glow lights */}
+              <div className="absolute -right-12 -top-12 h-44 w-44 bg-teal-500/10 rounded-full filter blur-2xl pointer-events-none"></div>
+              <div className="absolute -left-12 -bottom-12 h-44 w-44 bg-emerald-500/5 rounded-full filter blur-2xl pointer-events-none"></div>
               
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 relative z-10">
                 <div className="space-y-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="flex h-2 w-2 rounded-full bg-teal-400 animate-pulse"></span>
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                      Misafir Yükleme Limiti
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-2.5 w-2.5 rounded-full bg-teal-400 animate-pulse"></span>
+                    <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-400">
+                      Misafir Kullanıcı Limiti
                     </h4>
                   </div>
-                  <p className="text-xs text-zinc-400">
-                    Sisteme kayıt olmadan resim yüklüyorsunuz. Kalan yükleme hakkınız: <span className="text-teal-400 font-extrabold">{guestStats.remaining}</span> adet.
+                  <p className="text-xs text-zinc-400 max-w-md leading-relaxed">
+                    Kayıt olmadan yükleme yapıyorsunuz. Kalan yükleme hakkınız: <span className="text-teal-400 font-extrabold">{guestStats.remaining}</span> adet.
                   </p>
                 </div>
-                <div className="text-right shrink-0">
-                  <div className="text-sm font-black text-white">
-                    {guestStats.count} <span className="text-zinc-500">/ {guestStats.limit}</span>
+                
+                <div className="flex items-center gap-4 shrink-0 w-full sm:w-auto justify-between sm:justify-end">
+                  <div className="text-right">
+                    <div className="text-base font-black text-white font-mono">
+                      {guestStats.count} <span className="text-zinc-500 font-normal">/ {guestStats.limit}</span>
+                    </div>
+                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">Yüklenen Resim</span>
                   </div>
-                  <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Yüklenen Resim</span>
+                  
+                  {/* Premium-like Register CTA Button */}
+                  <a 
+                    href="/kayit" 
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-teal-500 via-emerald-450 to-teal-400 hover:from-teal-400 hover:to-emerald-400 px-4 py-2 text-xs font-black text-zinc-950 hover:shadow-lg hover:shadow-teal-500/10 active:scale-95 transition-all duration-200"
+                  >
+                    <span>Üye Ol</span>
+                    <Sparkles className="h-3 w-3" />
+                  </a>
                 </div>
               </div>
 
               {/* Progress Bar Container */}
-              <div className="relative h-3 w-full overflow-hidden rounded-full bg-zinc-900 border border-zinc-800/60 p-0.5">
+              <div className="relative h-4 w-full overflow-hidden rounded-full bg-zinc-900/90 border border-zinc-800/80 p-0.5 shadow-[inset_0_1px_3px_rgba(0,0,0,0.6)] z-10">
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${Math.min(100, (guestStats.count / guestStats.limit) * 100)}%` }}
-                  transition={{ duration: 1, ease: "easeOut" }}
-                  className={`h-full rounded-full transition-all duration-300 ${
+                  transition={{ duration: 1.2, ease: "easeOut" }}
+                  className={`h-full rounded-full relative transition-all duration-300 ${
                     guestStats.remaining === 0 
-                      ? 'bg-red-500' 
+                      ? 'bg-gradient-to-r from-red-500 to-rose-600 shadow-[0_0_12px_rgba(239,68,68,0.3)]' 
                       : guestStats.remaining <= 1 
-                        ? 'bg-amber-500' 
-                        : 'bg-gradient-to-r from-teal-500 to-emerald-400'
+                        ? 'bg-gradient-to-r from-amber-500 to-orange-400 shadow-[0_0_12px_rgba(245,158,11,0.3)]' 
+                        : 'bg-gradient-to-r from-teal-500 via-emerald-400 to-teal-400 shadow-[0_0_12px_rgba(20,184,166,0.2)]'
                   }`}
                 />
               </div>
 
               {/* Limit Status Alerts */}
-              {guestStats.remaining === 0 ? (
-                <div className="text-[11px] text-red-400 font-medium flex items-center gap-1.5 pt-0.5">
-                  <span className="text-sm">⚠️</span>
-                  <span>Misafir limitiniz doldu! Sınırsız yükleme hakkı ve yüksek boyut limiti için hemen ücretsiz üye olun.</span>
-                </div>
-              ) : guestStats.remaining <= 1 ? (
-                <div className="text-[11px] text-amber-400 font-medium flex items-center gap-1.5 pt-0.5 animate-pulse">
-                  <span className="text-sm">⚡</span>
-                  <span>Son 1 yükleme hakkınız kaldı! Ücretsiz üye olarak 100 MB limitiyle sınırsız yüklemeye geçin.</span>
-                </div>
-              ) : (
-                <div className="text-[11px] text-zinc-500 flex items-center gap-1 pt-0.5">
-                  <span>💡</span>
-                  <span>Saniyeler içinde kayıt olarak 100 MB üye boyut limitinden faydalanabilirsiniz.</span>
-                </div>
-              )}
+              <div className="relative z-10">
+                {guestStats.remaining === 0 ? (
+                  <div className="text-[11px] text-red-400 font-semibold flex items-center gap-2 pt-1">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-red-500/10 text-xs">⚠️</span>
+                    <span>Misafir limitiniz doldu! Sınırsız yükleme ve 100 MB dosya boyutu için ücretsiz üye olun.</span>
+                  </div>
+                ) : guestStats.remaining <= 1 ? (
+                  <div className="text-[11px] text-amber-400 font-semibold flex items-center gap-2 pt-1 animate-pulse">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-amber-500/10 text-xs">⚡</span>
+                    <span>Son 1 yükleme hakkınız kaldı! Ücretsiz üye olarak 100 MB limitiyle sınırsız yüklemeye geçin.</span>
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-zinc-500 flex items-center gap-2 pt-1">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-teal-500/10 text-teal-400 text-xs">💡</span>
+                    <span>Saniyeler içinde kayıt olarak 100 MB üye limitinden hemen yararlanabilirsiniz.</span>
+                  </div>
+                )}
+              </div>
             </motion.div>
           )}
         </div>
@@ -1472,6 +1513,106 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
               <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Kopyalandı</p>
               <p className="text-xs font-semibold text-zinc-100 leading-snug">{showToast}</p>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Advertisement Overlay Modal */}
+      <AnimatePresence>
+        {showAdModal && systemStatus?.adEnabled && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 15 }}
+              transition={{ type: "spring", damping: 25, stiffness: 350 }}
+              className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl space-y-5"
+            >
+              {/* Background Glow */}
+              <div className="absolute top-0 right-0 w-44 h-44 bg-amber-500/[0.03] rounded-full filter blur-2xl pointer-events-none"></div>
+
+              <div className="flex items-center justify-between border-b border-zinc-900 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-ping"></span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-md">
+                    Sponsorlu Reklam
+                  </span>
+                </div>
+                {adCountdown > 0 ? (
+                  <span className="text-xs font-bold text-zinc-500 font-mono">
+                    Reklamı Geç ({adCountdown}s)
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => setShowAdModal(false)}
+                    className="text-xs font-black text-amber-400 hover:text-amber-300 transition-colors bg-amber-500/10 hover:bg-amber-500/20 px-3 py-1.5 rounded-xl border border-amber-500/10 flex items-center gap-1.5"
+                  >
+                    <span>Sponsoru Kapat / Geç</span>
+                    <span>→</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Advertisement Image / Container */}
+              <div className="relative rounded-2xl overflow-hidden border border-zinc-900 bg-zinc-900/60 aspect-video group shadow-inner">
+                {systemStatus.adImageUrl ? (
+                  <img
+                    src={systemStatus.adImageUrl}
+                    alt="Sponsorlu Görsel"
+                    referrerPolicy="no-referrer"
+                    className="h-full w-full object-cover group-hover:scale-[1.02] transition-transform duration-700"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80";
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-zinc-600 font-medium">Sponsorlu Görsel</div>
+                )}
+                <span className="absolute top-3 right-3 rounded bg-black/80 px-2 py-0.5 text-[9px] font-black text-white tracking-widest uppercase">
+                  Sponsorlu
+                </span>
+              </div>
+
+              {/* Text content */}
+              <div className="space-y-2 text-center sm:text-left">
+                <h3 className="text-lg font-extrabold text-white leading-tight">
+                  {systemStatus.adTitle || "Sponsorlu Reklam"}
+                </h3>
+                <p className="text-xs text-zinc-400 leading-relaxed font-medium">
+                  {systemStatus.adDescription || "Resim yükleme hizmetimizi ücretsiz sunabilmemiz için sponsorumuzu ziyaret edin."}
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-3 pt-3 border-t border-zinc-900">
+                <button
+                  onClick={() => {
+                    if (adCountdown === 0) {
+                      setShowAdModal(false);
+                    }
+                  }}
+                  disabled={adCountdown > 0}
+                  className="flex-1 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 font-bold text-xs py-3.5 disabled:opacity-40 hover:bg-zinc-800 hover:text-white disabled:cursor-not-allowed transition-all active:scale-95 text-center"
+                >
+                  {adCountdown > 0 ? `Reklamı Kapat (${adCountdown}s)` : 'Reklamı Kapat ve Görsele Dön'}
+                </button>
+                <a
+                  href={systemStatus.adTargetUrl || "https://ai.studio/build"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setShowAdModal(false)}
+                  className="flex-1 rounded-xl bg-gradient-to-r from-amber-500 to-orange-400 text-zinc-950 font-black text-xs py-3.5 flex items-center justify-center gap-1.5 hover:shadow-lg hover:shadow-amber-500/10 hover:brightness-110 active:scale-95 transition-all text-center animate-pulse"
+                >
+                  <span>{systemStatus.adButtonText || "Sponsoru Ziyaret Et"}</span>
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

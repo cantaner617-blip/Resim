@@ -58,6 +58,13 @@ export interface SystemStatus {
   announcementTemplate: string | null;
   announcements?: Announcement[];
   guestUploadLimit?: number;
+  adEnabled?: boolean;
+  adImageUrl?: string;
+  adTargetUrl?: string;
+  adTitle?: string;
+  adDescription?: string;
+  adButtonText?: string;
+  adDuration?: number;
 }
 
 export type ViewType = 'home' | 'my-images' | 'login' | 'register' | 'detail' | 'admin' | 'hakkimizda' | 'sartlar' | 'yardim';

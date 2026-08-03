@@ -20,7 +20,10 @@ import {
   User,
   CheckCircle,
   XCircle,
-  ExternalLink
+  ExternalLink,
+  Search,
+  ArrowUpDown,
+  Filter
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { User as UserType, ImageRecord, SystemStatus, Announcement, AbuseReport, SupportMessage } from '../types';
@@ -59,6 +62,20 @@ export default function AdminPanel({ user }: AdminPanelProps) {
   const [announcementsList, setAnnouncementsList] = useState<Announcement[]>([]);
   const [announcement, setAnnouncement] = useState('');
   const [announcementTemplate, setAnnouncementTemplate] = useState<'info' | 'warning' | 'success'>('info');
+
+  // Advertisement Settings State
+  const [adEnabled, setAdEnabled] = useState(false);
+  const [adImageUrl, setAdImageUrl] = useState('');
+  const [adTargetUrl, setAdTargetUrl] = useState('');
+  const [adTitle, setAdTitle] = useState('');
+  const [adDescription, setAdDescription] = useState('');
+  const [adButtonText, setAdButtonText] = useState('');
+  const [adDuration, setAdDuration] = useState(5);
+
+  // Interactive Image Pool search & filter states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState<'all' | 'guest' | 'member'>('all');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'views' | 'size'>('newest');
 
   // Ready-Made Announcement Templates
   const readyTemplates = [
@@ -113,6 +130,13 @@ export default function AdminPanel({ user }: AdminPanelProps) {
         setMaintenanceMode(statusData.maintenanceMode || false);
         setAnnouncementsList(statusData.announcements || []);
         setGuestLimit(statusData.guestUploadLimit !== undefined ? statusData.guestUploadLimit : 5);
+        setAdEnabled(statusData.adEnabled || false);
+        setAdImageUrl(statusData.adImageUrl || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80");
+        setAdTargetUrl(statusData.adTargetUrl || "https://ai.studio/build");
+        setAdTitle(statusData.adTitle || "Sponsorlu Reklam");
+        setAdDescription(statusData.adDescription || "Resim yükleme hizmetimizi ücretsiz sunabilmemiz için sponsorumuzu ziyaret edin.");
+        setAdButtonText(statusData.adButtonText || "Sponsoru Ziyaret Et");
+        setAdDuration(statusData.adDuration !== undefined ? statusData.adDuration : 5);
       }
 
       // 2. Fetch all images
@@ -193,7 +217,14 @@ export default function AdminPanel({ user }: AdminPanelProps) {
           announcements: announcementsList,
           announcement: announcementsList.length > 0 ? announcementsList[0].message : null,
           announcementTemplate: announcementsList.length > 0 ? announcementsList[0].template : null,
-          guestUploadLimit: Number(guestLimit)
+          guestUploadLimit: Number(guestLimit),
+          adEnabled,
+          adImageUrl,
+          adTargetUrl,
+          adTitle,
+          adDescription,
+          adButtonText,
+          adDuration: Number(adDuration)
         })
       });
 
@@ -375,6 +406,28 @@ export default function AdminPanel({ user }: AdminPanelProps) {
   const pendingReportsCount = reports.filter(r => r.status === 'pending').length;
   const unreadMessagesCount = supportMessages.filter(m => m.status === 'unread').length;
 
+  const filteredImages = images
+    .filter(img => {
+      const matchesSearch = img.id.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                            (img.filename && img.filename.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesType = filterType === 'all' || 
+                          (filterType === 'member' && img.userId) || 
+                          (filterType === 'guest' && !img.userId);
+      return matchesSearch && matchesType;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'newest') {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      } else if (sortBy === 'oldest') {
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      } else if (sortBy === 'views') {
+        return (b.views || 0) - (a.views || 0);
+      } else if (sortBy === 'size') {
+        return b.bytes - a.bytes;
+      }
+      return 0;
+    });
+
   return (
     <div className="space-y-8" id="admin-panel">
       
@@ -406,45 +459,73 @@ export default function AdminPanel({ user }: AdminPanelProps) {
 
       {/* Admin Quick Metrics Section */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" id="admin-stats-grid">
-        <div className="rounded-xl border border-zinc-900 bg-zinc-950/40 p-5 flex items-center justify-between">
-          <div>
-            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider block">Toplam Görsel</span>
-            <span className="text-2xl font-black text-white block mt-1">{stats.totalImages}</span>
+        
+        {/* Metric 1: Total Images */}
+        <div className="relative overflow-hidden rounded-2xl border border-zinc-900 bg-zinc-950/50 p-6 flex items-center justify-between shadow-lg group hover:border-teal-500/30 transition-all duration-300">
+          <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-teal-500/20 to-transparent"></div>
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block">Toplam Görsel</span>
+            <span className="text-3xl font-black text-white block tracking-tight font-mono">{stats.totalImages}</span>
+            <span className="text-[10px] text-zinc-400 block font-semibold">
+              <span className="text-teal-400">{stats.memberImages}</span> üye • <span className="text-zinc-500">{stats.guestImages}</span> misafir
+            </span>
           </div>
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-500/10 text-teal-400">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20 group-hover:scale-110 group-hover:bg-teal-500/20 transition-all duration-300">
             <ImageIcon className="h-5 w-5" />
           </div>
         </div>
 
-        <div className="rounded-xl border border-zinc-900 bg-zinc-950/40 p-5 flex items-center justify-between">
-          <div>
-            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider block">Toplam Görüntülenme</span>
-            <span className="text-2xl font-black text-white block mt-1">{stats.totalViews}</span>
+        {/* Metric 2: Total Views */}
+        <div className="relative overflow-hidden rounded-2xl border border-zinc-900 bg-zinc-950/50 p-6 flex items-center justify-between shadow-lg group hover:border-emerald-500/30 transition-all duration-300">
+          <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-emerald-500/20 to-transparent"></div>
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block">Toplam İzlenme</span>
+            <span className="text-3xl font-black text-white block tracking-tight font-mono">{stats.totalViews.toLocaleString('tr-TR')}</span>
+            <span className="text-[10px] text-zinc-500 block font-semibold">Görsel tıklanma sayısı</span>
           </div>
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 group-hover:scale-110 group-hover:bg-emerald-500/20 transition-all duration-300">
             <EyeIcon className="h-5 w-5" />
           </div>
         </div>
 
-        <div className="rounded-xl border border-zinc-900 bg-zinc-950/40 p-5 flex items-center justify-between">
-          <div>
-            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider block">Aktif İhbarlar (DMCA)</span>
-            <span className="text-2xl font-black text-red-400 block mt-1">{pendingReportsCount}</span>
+        {/* Metric 3: DMCA Abuse Reports */}
+        <div className="relative overflow-hidden rounded-2xl border border-zinc-900 bg-zinc-950/50 p-6 flex items-center justify-between shadow-lg group hover:border-red-500/35 transition-all duration-300">
+          <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-red-500/25 to-transparent"></div>
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block">Aktif İhbarlar (DMCA)</span>
+            <span className={`text-3xl font-black block tracking-tight font-mono ${pendingReportsCount > 0 ? 'text-red-400' : 'text-zinc-400'}`}>
+              {pendingReportsCount}
+            </span>
+            <span className="text-[10px] text-zinc-500 block font-semibold">İnceleme bekleyen ihbar</span>
           </div>
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-950/30 text-red-400 border border-red-900/20">
+          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border group-hover:scale-110 transition-all duration-300 ${
+            pendingReportsCount > 0 
+              ? 'bg-red-550/10 text-red-400 border-red-500/20 group-hover:bg-red-500/20' 
+              : 'bg-zinc-900/50 text-zinc-500 border-zinc-800'
+          }`}>
             <ShieldAlert className="h-5 w-5" />
           </div>
         </div>
 
-        <div className="rounded-xl border border-zinc-900 bg-zinc-950/40 p-5 flex items-center justify-between">
-          <div>
-            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider block">Okunmamış Destek</span>
-            <span className="text-2xl font-black text-blue-400 block mt-1">{unreadMessagesCount}</span>
+        {/* Metric 4: Unread Support Messages */}
+        <div className="relative overflow-hidden rounded-2xl border border-zinc-900 bg-zinc-950/50 p-6 flex items-center justify-between shadow-lg group hover:border-blue-500/35 transition-all duration-300">
+          <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-blue-500/25 to-transparent"></div>
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block">Okunmamış Destek</span>
+            <span className={`text-3xl font-black block tracking-tight font-mono ${unreadMessagesCount > 0 ? 'text-blue-400' : 'text-zinc-400'}`}>
+              {unreadMessagesCount}
+            </span>
+            <span className="text-[10px] text-zinc-500 block font-semibold">Cevap bekleyen mesaj</span>
           </div>
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
+          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border group-hover:scale-110 transition-all duration-300 ${
+            unreadMessagesCount > 0 
+              ? 'bg-blue-550/10 text-blue-400 border-blue-500/20 group-hover:bg-blue-500/20' 
+              : 'bg-zinc-900/50 text-zinc-500 border-zinc-800'
+          }`}>
             <MessageSquare className="h-5 w-5" />
           </div>
         </div>
+
       </div>
 
       {/* Tab Navigation */}
@@ -563,6 +644,175 @@ export default function AdminPanel({ user }: AdminPanelProps) {
                 </div>
               </div>
 
+              {/* Advertisement Settings Control Panel */}
+              <div className="bg-zinc-950/50 rounded-xl border border-zinc-900 p-6 space-y-6">
+                <div className="flex items-center justify-between border-b border-zinc-900 pb-4">
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-amber-400" />
+                      Yükleme Sonrası Reklam / Sponsor Paneli
+                    </h3>
+                    <p className="text-xs text-zinc-400">
+                      Kullanıcılar başarıyla görsel yükledikten sonra gösterilecek özel reklam penceresini yönetin.
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
+                    <input 
+                      type="checkbox" 
+                      checked={adEnabled}
+                      onChange={(e) => setAdEnabled(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-400 after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500 peer-checked:after:bg-zinc-950"></div>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-zinc-400 block">Reklam Başlığı</label>
+                      <input
+                        type="text"
+                        value={adTitle}
+                        onChange={(e) => setAdTitle(e.target.value)}
+                        placeholder="Örn: Premium Üyelik Fırsatı!"
+                        className="w-full rounded-xl border border-zinc-800 bg-zinc-900/30 px-3.5 py-2 text-xs text-zinc-200 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/25"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-zinc-400 block">Yönlendirme Linki (Hedef URL)</label>
+                      <input
+                        type="url"
+                        value={adTargetUrl}
+                        onChange={(e) => setAdTargetUrl(e.target.value)}
+                        placeholder="Örn: https://..."
+                        className="w-full rounded-xl border border-zinc-800 bg-zinc-900/30 px-3.5 py-2 text-xs text-zinc-200 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/25"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-zinc-400 block">Buton Metni</label>
+                        <input
+                          type="text"
+                          value={adButtonText}
+                          onChange={(e) => setAdButtonText(e.target.value)}
+                          placeholder="Örn: Hemen Keşfet"
+                          className="w-full rounded-xl border border-zinc-800 bg-zinc-900/30 px-3.5 py-2 text-xs text-zinc-200 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/25"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-zinc-400 block">Bekleme Süresi (Saniye)</label>
+                        <input
+                          type="number"
+                          min={2}
+                          max={60}
+                          value={adDuration}
+                          onChange={(e) => setAdDuration(Number(e.target.value))}
+                          className="w-full rounded-xl border border-zinc-800 bg-zinc-900/30 px-3.5 py-2 text-xs text-zinc-200 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/25 font-bold"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-zinc-400 block">Reklam Görseli URL'si</label>
+                      <input
+                        type="url"
+                        value={adImageUrl}
+                        onChange={(e) => setAdImageUrl(e.target.value)}
+                        placeholder="Örn: https://images.unsplash.com/..."
+                        className="w-full rounded-xl border border-zinc-800 bg-zinc-900/30 px-3.5 py-2 text-xs text-zinc-200 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/25"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-zinc-400 block">Reklam Açıklaması</label>
+                      <textarea
+                        value={adDescription}
+                        onChange={(e) => setAdDescription(e.target.value)}
+                        placeholder="Kullanıcıların dikkatini çekecek kısa bir sponsorluk açıklaması yazın..."
+                        rows={2}
+                        className="w-full rounded-xl border border-zinc-800 bg-zinc-900/30 px-3.5 py-2 text-xs text-zinc-200 placeholder-zinc-600 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/25"
+                      />
+                    </div>
+                  </div>
+
+                  {/* AD LIVE PREVIEW BOX */}
+                  <div className="rounded-xl border border-zinc-900 bg-zinc-950/80 p-4 flex flex-col justify-between relative overflow-hidden">
+                    {/* Background Soft Glow */}
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/[0.03] rounded-full filter blur-xl pointer-events-none"></div>
+
+                    <div className="space-y-3 relative z-10">
+                      <div className="flex items-center justify-between border-b border-zinc-900 pb-2">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                          Reklam Önizlemesi
+                        </span>
+                        <span className="text-[10px] text-zinc-500 font-bold font-mono">
+                          Kapat / Geç ({adDuration}s)
+                        </span>
+                      </div>
+
+                      <div className="rounded-lg overflow-hidden border border-zinc-800 bg-zinc-900/50 aspect-video relative flex items-center justify-center">
+                        {adImageUrl ? (
+                          <img
+                            src={adImageUrl}
+                            alt="Ad Preview"
+                            referrerPolicy="no-referrer"
+                            className="h-full w-full object-cover"
+                            onError={(e) => {
+                              // Fallback on broken URL
+                              (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80";
+                            }}
+                          />
+                        ) : (
+                          <div className="text-[11px] text-zinc-600 font-medium">Görsel Seçilmedi</div>
+                        )}
+                        <span className="absolute top-2 right-2 rounded bg-black/70 px-1.5 py-0.5 text-[8px] font-black text-white tracking-widest uppercase">
+                          Sponsorlu
+                        </span>
+                      </div>
+
+                      <div className="space-y-1 text-left">
+                        <h4 className="text-xs font-extrabold text-white truncate">
+                          {adTitle || "Sponsorlu Reklam Başlığı"}
+                        </h4>
+                        <p className="text-[10px] text-zinc-400 line-clamp-2 leading-relaxed">
+                          {adDescription || "Reklam açıklaması burada görünecektir. Lütfen sol taraftaki alandan düzenleyin."}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-zinc-900 relative z-10 flex gap-2">
+                      <button
+                        type="button"
+                        disabled
+                        className="flex-1 rounded-lg bg-zinc-900 border border-zinc-800 py-1.5 text-[10px] font-bold text-zinc-500"
+                      >
+                        Reklamı Geç ({adDuration})
+                      </button>
+                      <a
+                        href={adTargetUrl || "#"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 rounded-lg bg-gradient-to-r from-amber-500 to-orange-400 py-1.5 text-[10px] font-black text-zinc-950 flex items-center justify-center gap-1 hover:brightness-110 transition-all cursor-alias"
+                      >
+                        <span>{adButtonText || "Ziyaret Et"}</span>
+                        <ExternalLink className="h-2.5 w-2.5" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+                {!adEnabled && (
+                  <div className="rounded-lg bg-zinc-900/40 border border-zinc-900 p-3 text-center text-xs text-zinc-500 font-medium">
+                    ⏸️ Reklam paneli şu anda pasif. Aktifleştirmek için sağ üstteki butonu kullanın.
+                  </div>
+                )}
+              </div>
+
               {/* Announcement Editor */}
               <div className="space-y-6">
                 <label className="text-sm font-bold text-white flex items-center gap-1.5 border-b border-zinc-900 pb-2">
@@ -634,7 +884,7 @@ export default function AdminPanel({ user }: AdminPanelProps) {
                                     ? 'bg-amber-500/20 text-amber-300 border border-amber-500/10'
                                     : 'bg-teal-500/20 text-teal-300 border border-teal-500/10'
                               }`}>
-                                {announcementTemplate === 'success' ? 'Duyuru' : announcementTemplate === 'warning' ? 'Önemli Uyarı' : 'Bilgi'}
+                                {announcementTemplate === 'success' ? 'Güncelleme' : announcementTemplate === 'warning' ? 'Kritik Uyarı' : 'İpucu'}
                               </span>
                               <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Sistem Bildirimi (Önizleme)</span>
                             </div>
@@ -647,36 +897,67 @@ export default function AdminPanel({ user }: AdminPanelProps) {
                     </div>
                   )}
 
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-1">
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-semibold text-zinc-500 block uppercase">Şablon Stili</span>
-                      <div className="flex gap-2">
-                        {[
-                          { key: 'info', label: 'Bilgi (Mavi)', bg: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
-                          { key: 'warning', label: 'Uyarı (Sarı)', bg: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
-                          { key: 'success', label: 'Başarı (Yeşil)', bg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' }
-                        ].map((style) => (
+                  {/* Görsel Tema / Stil Seçici Entegrasyonu */}
+                  <div className="space-y-3 pt-1">
+                    <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest block">Görsel Tema / Stil Seçici</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {[
+                        { 
+                          key: 'warning', 
+                          label: 'Kritik', 
+                          desc: 'Sistem bakımı, kesinti ve önemli uyarılar.', 
+                          color: 'border-red-500/20 hover:border-red-500/40 text-red-400 bg-red-500/[0.03] hover:bg-red-500/[0.08]',
+                          selectedColor: 'border-red-500/60 bg-red-500/10 text-red-300 ring-1 ring-red-500/30',
+                          icon: <AlertTriangle className="h-4 w-4 text-red-400" />
+                        },
+                        { 
+                          key: 'success', 
+                          label: 'Güncelleme', 
+                          desc: 'Yeni özellikler, iyileştirmeler ve başarılar.', 
+                          color: 'border-emerald-500/20 hover:border-emerald-500/40 text-emerald-400 bg-emerald-500/[0.03] hover:bg-emerald-500/[0.08]',
+                          selectedColor: 'border-emerald-500/60 bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/30',
+                          icon: <Sparkles className="h-4 w-4 text-emerald-400 animate-pulse" />
+                        },
+                        { 
+                          key: 'info', 
+                          label: 'İpucu', 
+                          desc: 'Kullanım önerileri, ipuçları ve genel bilgiler.', 
+                          color: 'border-teal-500/20 hover:border-teal-500/40 text-teal-400 bg-teal-500/[0.03] hover:bg-teal-500/[0.08]',
+                          selectedColor: 'border-teal-500/60 bg-teal-500/10 text-teal-300 ring-1 ring-teal-500/30',
+                          icon: <Megaphone className="h-4 w-4 text-teal-400" />
+                        }
+                      ].map((theme) => {
+                        const isSelected = announcementTemplate === theme.key;
+                        return (
                           <button
-                            key={style.key}
+                            key={theme.key}
                             type="button"
-                            onClick={() => setAnnouncementTemplate(style.key as any)}
-                            className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-all ${
-                              announcementTemplate === style.key 
-                                ? `${style.bg} ring-1 ring-teal-500` 
-                                : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
+                            onClick={() => setAnnouncementTemplate(theme.key as any)}
+                            className={`flex flex-col items-start text-left p-3.5 rounded-xl border transition-all duration-200 cursor-pointer ${
+                              isSelected ? theme.selectedColor : `${theme.color} border-zinc-800 bg-zinc-950/20`
                             }`}
                           >
-                            {style.label}
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <span className="p-1 rounded-lg bg-zinc-900 border border-zinc-850">
+                                {theme.icon}
+                              </span>
+                              <span className="text-xs font-black tracking-tight">{theme.label}</span>
+                            </div>
+                            <p className="text-[10px] text-zinc-500 font-semibold leading-relaxed">
+                              {theme.desc}
+                            </p>
                           </button>
-                        ))}
-                      </div>
+                        );
+                      })}
                     </div>
+                  </div>
 
+                  <div className="flex justify-end pt-3">
                     <button
                       type="button"
                       onClick={handleAddAnnouncement}
                       disabled={!announcement.trim()}
-                      className="w-full sm:w-auto flex items-center justify-center space-x-1.5 rounded-lg bg-teal-500 hover:bg-teal-400 text-zinc-950 font-bold text-xs px-4 py-2 disabled:opacity-40 transition-all cursor-pointer self-end"
+                      className="w-full sm:w-auto flex items-center justify-center space-x-1.5 rounded-lg bg-teal-500 hover:bg-teal-400 text-zinc-950 font-bold text-xs px-4 py-2.5 disabled:opacity-40 transition-all cursor-pointer shadow-md shadow-teal-500/10 hover:shadow-teal-500/20 active:scale-95"
                     >
                       <Plus className="h-3.5 w-3.5" />
                       <span>Duyuru Listesine Ekle</span>
@@ -706,7 +987,7 @@ export default function AdminPanel({ user }: AdminPanelProps) {
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 mb-1">
                               <span className="font-extrabold uppercase tracking-widest text-[9px] px-1.5 py-0.5 rounded bg-zinc-900/80 text-zinc-300">
-                                #{announcementsList.length - index} {item.template === 'success' ? 'Duyuru' : item.template === 'warning' ? 'Önemli' : 'Bilgi'}
+                                #{announcementsList.length - index} {item.template === 'success' ? 'Güncelleme' : item.template === 'warning' ? 'Kritik' : 'İpucu'}
                               </span>
                               <span className="text-[10px] text-zinc-500">{new Date(item.createdAt).toLocaleTimeString()}</span>
                             </div>
@@ -797,14 +1078,81 @@ export default function AdminPanel({ user }: AdminPanelProps) {
 
       {activeTab === 'images' && (
         <div className="rounded-2xl border border-zinc-900 bg-zinc-950/20 p-6 space-y-6 animate-in fade-in duration-150" id="tab-images-content">
-          <div>
-            <h2 className="text-xl font-bold text-white">Sistem Görsel Havuzu ({images.length})</h2>
-            <p className="text-xs text-zinc-400">Sunucu üzerinde yüklü olan tüm görselleri listeyebilir, orijinal hallerini inceleyebilir ve silebilirsiniz.</p>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-900 pb-4">
+            <div>
+              <h2 className="text-xl font-bold text-white">Sistem Görsel Havuzu ({filteredImages.length} / {images.length})</h2>
+              <p className="text-xs text-zinc-400">Sunucu üzerinde yüklü olan tüm görselleri arayabilir, filtreleyebilir ve silebilirsiniz.</p>
+            </div>
+            {/* Quick reset if there's query/filters */}
+            {(searchQuery || filterType !== 'all' || sortBy !== 'newest') && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setFilterType('all');
+                  setSortBy('newest');
+                }}
+                className="text-xs font-semibold text-teal-400 hover:text-teal-300 transition-colors cursor-pointer"
+              >
+                Filtreleri Sıfırla
+              </button>
+            )}
           </div>
 
-          {images.length === 0 ? (
+          {/* Search and Filters Controller Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-zinc-950/40 p-4 rounded-xl border border-zinc-900/60">
+            {/* Search Input */}
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <Search className="h-4 w-4 text-zinc-500" />
+              </span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="ID veya Dosya adı ara..."
+                className="w-full bg-zinc-900/40 hover:bg-zinc-900/60 border border-zinc-800 focus:border-teal-500/50 rounded-xl py-2 pl-9 pr-4 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-teal-500/20 transition-all"
+              />
+            </div>
+
+            {/* Filter Dropdown */}
+            <div className="relative flex items-center">
+              <span className="absolute left-3 pointer-events-none">
+                <Filter className="h-3.5 w-3.5 text-zinc-500" />
+              </span>
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value as any)}
+                className="w-full appearance-none bg-zinc-900/40 hover:bg-zinc-900/60 border border-zinc-800 focus:border-teal-500/50 rounded-xl py-2 pl-9 pr-8 text-xs text-zinc-200 cursor-pointer focus:outline-none transition-all"
+              >
+                <option value="all">Tüm Yükleyenler</option>
+                <option value="member">Sadece Kayıtlı Üyeler</option>
+                <option value="guest">Sadece Misafirler</option>
+              </select>
+              <span className="absolute right-3 text-zinc-500 text-[10px] pointer-events-none">▼</span>
+            </div>
+
+            {/* Sort Dropdown */}
+            <div className="relative flex items-center">
+              <span className="absolute left-3 pointer-events-none">
+                <ArrowUpDown className="h-3.5 w-3.5 text-zinc-500" />
+              </span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="w-full appearance-none bg-zinc-900/40 hover:bg-zinc-900/60 border border-zinc-800 focus:border-teal-500/50 rounded-xl py-2 pl-9 pr-8 text-xs text-zinc-200 cursor-pointer focus:outline-none transition-all"
+              >
+                <option value="newest">Sıralama: En Yeni</option>
+                <option value="oldest">Sıralama: En Eski</option>
+                <option value="views">Sıralama: En Çok İzlenen</option>
+                <option value="size">Sıralama: En Büyük Dosya</option>
+              </select>
+              <span className="absolute right-3 text-zinc-500 text-[10px] pointer-events-none">▼</span>
+            </div>
+          </div>
+
+          {filteredImages.length === 0 ? (
             <div className="text-center p-12 rounded-xl bg-zinc-950/40 text-sm text-zinc-500 border border-zinc-900">
-              Sistemde kayıtlı hiç görsel bulunamadı.
+              Kriterlere uyan hiçbir görsel bulunamadı.
             </div>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-zinc-900">
@@ -821,7 +1169,7 @@ export default function AdminPanel({ user }: AdminPanelProps) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-900">
-                  {images.map((img) => {
+                  {filteredImages.map((img) => {
                     const fileSizeKb = (img.bytes / 1024).toFixed(1);
                     return (
                       <tr key={img.id} className="hover:bg-zinc-900/30 transition-colors">

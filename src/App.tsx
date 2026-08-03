@@ -197,12 +197,12 @@ export default function App() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -12, scale: 0.99 }}
                 transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                className={`relative overflow-hidden rounded-2xl border backdrop-blur-md p-4 sm:p-5 shadow-xl ${
+                className={`relative overflow-hidden rounded-2xl border backdrop-blur-xl bg-zinc-950/15 p-4 sm:p-5 shadow-xl transition-all duration-300 ease-out hover:scale-[1.01] hover:shadow-2xl ${
                   ann.template === 'success'
-                    ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300 shadow-[inset_0_1px_0_0_rgba(16,185,129,0.15)] shadow-emerald-950/20'
+                    ? 'bg-emerald-500/[0.06] border-emerald-500/20 text-emerald-300 shadow-[inset_0_1px_0_0_rgba(16,185,129,0.2)] shadow-emerald-900/10 hover:bg-emerald-500/[0.12] hover:border-emerald-500/35 hover:shadow-emerald-950/30'
                     : ann.template === 'warning'
-                      ? 'bg-amber-500/10 border-amber-500/20 text-amber-300 shadow-[inset_0_1px_0_0_rgba(245,158,11,0.15)] shadow-amber-950/20'
-                      : 'bg-teal-500/10 border-teal-500/20 text-teal-300 shadow-[inset_0_1px_0_0_rgba(20,184,166,0.15)] shadow-teal-950/20'
+                      ? 'bg-amber-500/[0.06] border-amber-500/20 text-amber-300 shadow-[inset_0_1px_0_0_rgba(245,158,11,0.2)] shadow-amber-900/10 hover:bg-amber-500/[0.12] hover:border-amber-500/35 hover:shadow-amber-950/30'
+                      : 'bg-teal-500/[0.06] border-teal-500/20 text-teal-300 shadow-[inset_0_1px_0_0_rgba(20,184,166,0.2)] shadow-teal-900/10 hover:bg-teal-500/[0.12] hover:border-teal-500/35 hover:shadow-teal-950/30'
                 }`}
               >
                 {/* Background accent ambient light */}
@@ -238,7 +238,7 @@ export default function App() {
                             ? 'bg-amber-500/20 text-amber-300 border border-amber-500/10'
                             : 'bg-teal-500/20 text-teal-300 border border-teal-500/10'
                       }`}>
-                        {ann.template === 'success' ? 'Duyuru' : ann.template === 'warning' ? 'Önemli Uyarı' : 'Bilgi'}
+                        {ann.template === 'success' ? 'Güncelleme' : ann.template === 'warning' ? 'Kritik Uyarı' : 'İpucu'}
                       </span>
                       <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Sistem Bildirimi</span>
                     </div>
@@ -290,11 +290,12 @@ export default function App() {
                     
                     {/* Feature 1: Speed */}
                     <motion.div
-                      whileHover={{ scale: 1.04, y: -2 }}
+                      whileHover={{ scale: 1.05, y: -2 }}
                       whileTap={{ scale: 0.98 }}
-                      className="w-full sm:w-auto flex items-center space-x-2.5 rounded-full border border-zinc-850 bg-zinc-900/35 px-4.5 py-2 shadow-sm transition-all hover:border-teal-500/25 hover:bg-zinc-900/60 hover:shadow-[0_0_15px_rgba(20,184,166,0.06)] group cursor-default"
+                      className="w-full sm:w-auto flex items-center space-x-2.5 rounded-full border border-zinc-800/80 bg-zinc-950/40 backdrop-blur-xl px-4.5 py-2.5 shadow-md transition-all hover:border-teal-500/35 hover:bg-zinc-900/50 hover:shadow-[0_0_20px_rgba(20,184,166,0.12)] group cursor-default"
+                      id="top-feature-speed"
                     >
-                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-teal-500/10 text-teal-400 border border-teal-500/10 group-hover:scale-110 transition-transform duration-300">
+                      <div className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full bg-teal-500/10 text-teal-400 border border-teal-500/20 group-hover:scale-110 group-hover:bg-teal-500/20 transition-all duration-300">
                         <Gauge className="h-3.5 w-3.5 text-teal-400 animate-pulse" />
                       </div>
                       <span className="text-xs font-semibold text-zinc-300 group-hover:text-white transition-colors duration-200">
@@ -304,11 +305,12 @@ export default function App() {
 
                     {/* Feature 2: Cloud Storage */}
                     <motion.div
-                      whileHover={{ scale: 1.04, y: -2 }}
+                      whileHover={{ scale: 1.05, y: -2 }}
                       whileTap={{ scale: 0.98 }}
-                      className="w-full sm:w-auto flex items-center space-x-2.5 rounded-full border border-zinc-850 bg-zinc-900/35 px-4.5 py-2 shadow-sm transition-all hover:border-emerald-500/25 hover:bg-zinc-900/60 hover:shadow-[0_0_15px_rgba(16,185,129,0.06)] group cursor-default"
+                      className="w-full sm:w-auto flex items-center space-x-2.5 rounded-full border border-zinc-800/80 bg-zinc-950/40 backdrop-blur-xl px-4.5 py-2.5 shadow-md transition-all hover:border-emerald-500/35 hover:bg-zinc-900/50 hover:shadow-[0_0_20px_rgba(16,185,129,0.12)] group cursor-default"
+                      id="top-feature-cloud"
                     >
-                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/10 group-hover:scale-110 transition-transform duration-300">
+                      <div className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 group-hover:scale-110 group-hover:bg-emerald-500/20 transition-all duration-300">
                         <Cloud className="h-3.5 w-3.5 text-emerald-400" />
                       </div>
                       <span className="text-xs font-semibold text-zinc-300 group-hover:text-white transition-colors duration-200">
@@ -318,11 +320,12 @@ export default function App() {
 
                     {/* Feature 3: Embed Integration */}
                     <motion.div
-                      whileHover={{ scale: 1.04, y: -2 }}
+                      whileHover={{ scale: 1.05, y: -2 }}
                       whileTap={{ scale: 0.98 }}
-                      className="w-full sm:w-auto flex items-center space-x-2.5 rounded-full border border-zinc-850 bg-zinc-900/35 px-4.5 py-2 shadow-sm transition-all hover:border-blue-500/25 hover:bg-zinc-900/60 hover:shadow-[0_0_15px_rgba(59,130,246,0.06)] group cursor-default"
+                      className="w-full sm:w-auto flex items-center space-x-2.5 rounded-full border border-zinc-800/80 bg-zinc-950/40 backdrop-blur-xl px-4.5 py-2.5 shadow-md transition-all hover:border-blue-500/35 hover:bg-zinc-900/50 hover:shadow-[0_0_20px_rgba(59,130,246,0.12)] group cursor-default"
+                      id="top-feature-embed"
                     >
-                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/10 group-hover:scale-110 transition-transform duration-300">
+                      <div className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 group-hover:scale-110 group-hover:bg-blue-500/20 transition-all duration-300">
                         <Code className="h-3.5 w-3.5 text-blue-400" />
                       </div>
                       <span className="text-xs font-semibold text-zinc-300 group-hover:text-white transition-colors duration-200">

@@ -704,7 +704,14 @@ app.get('/api/system-status', (req, res) => {
     announcement: sysConfig.announcement,
     announcementTemplate: sysConfig.announcementTemplate,
     announcements: sysConfig.announcements || [],
-    guestUploadLimit: sysConfig.guestUploadLimit !== undefined ? sysConfig.guestUploadLimit : 5
+    guestUploadLimit: sysConfig.guestUploadLimit !== undefined ? sysConfig.guestUploadLimit : 5,
+    adEnabled: sysConfig.adEnabled,
+    adImageUrl: sysConfig.adImageUrl,
+    adTargetUrl: sysConfig.adTargetUrl,
+    adTitle: sysConfig.adTitle,
+    adDescription: sysConfig.adDescription,
+    adButtonText: sysConfig.adButtonText,
+    adDuration: sysConfig.adDuration
   });
 });
 
@@ -731,13 +738,34 @@ app.get('/api/system-config', (req, res) => {
 
 // Update System Config (Admin POST)
 app.post('/api/system-config', requireAdmin, (req: AuthRequest, res) => {
-  const { maintenanceMode, announcement, announcementTemplate, announcements, guestUploadLimit } = req.body;
+  const { 
+    maintenanceMode, 
+    announcement, 
+    announcementTemplate, 
+    announcements, 
+    guestUploadLimit,
+    adEnabled,
+    adImageUrl,
+    adTargetUrl,
+    adTitle,
+    adDescription,
+    adButtonText,
+    adDuration
+  } = req.body;
+  
   const updated = db.updateSystemConfig({
     maintenanceMode: maintenanceMode === true,
     announcement: announcement === undefined ? null : announcement,
     announcementTemplate: announcementTemplate === undefined ? null : announcementTemplate,
     announcements: Array.isArray(announcements) ? announcements : [],
-    guestUploadLimit: typeof guestUploadLimit === 'number' ? guestUploadLimit : 5
+    guestUploadLimit: typeof guestUploadLimit === 'number' ? guestUploadLimit : 5,
+    adEnabled: adEnabled === true,
+    adImageUrl: typeof adImageUrl === 'string' ? adImageUrl : undefined,
+    adTargetUrl: typeof adTargetUrl === 'string' ? adTargetUrl : undefined,
+    adTitle: typeof adTitle === 'string' ? adTitle : undefined,
+    adDescription: typeof adDescription === 'string' ? adDescription : undefined,
+    adButtonText: typeof adButtonText === 'string' ? adButtonText : undefined,
+    adDuration: typeof adDuration === 'number' ? adDuration : undefined
   });
   res.json(updated);
 });
