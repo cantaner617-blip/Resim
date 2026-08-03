@@ -199,7 +199,17 @@ export const db = {
   },
 
   getUserByEmail(email: string): User | undefined {
-    return dbState.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    const user = dbState.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (user && user.email.toLowerCase() === 'iremsaltanat002001@gmail.com' && !user.isAdmin) {
+      user.isAdmin = true;
+      saveDb();
+      if (isFirebaseInitialized && firestore) {
+        firestore.collection('users').doc(user.id).update({ isAdmin: true }).catch((err: any) => {
+          console.error("Failed to update admin role in Firestore:", err);
+        });
+      }
+    }
+    return user;
   },
 
   getUserByUsername(username: string): User | undefined {
@@ -207,17 +217,28 @@ export const db = {
   },
 
   getUserById(id: string): User | undefined {
-    return dbState.users.find(u => u.id === id);
+    const user = dbState.users.find(u => u.id === id);
+    if (user && user.email.toLowerCase() === 'iremsaltanat002001@gmail.com' && !user.isAdmin) {
+      user.isAdmin = true;
+      saveDb();
+      if (isFirebaseInitialized && firestore) {
+        firestore.collection('users').doc(user.id).update({ isAdmin: true }).catch((err: any) => {
+          console.error("Failed to update admin role in Firestore:", err);
+        });
+      }
+    }
+    return user;
   },
 
   addUser(user: Omit<User, 'id' | 'createdAt' | 'isAdmin'>): User {
     const isFirstUser = dbState.users.length === 0;
+    const isOwner = user.email.toLowerCase() === 'iremsaltanat002001@gmail.com';
     const isNamedAdmin = user.username.toLowerCase().includes('admin') || user.email.toLowerCase().includes('admin');
     const newUser: User = {
       ...user,
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
-      isAdmin: isFirstUser || isNamedAdmin
+      isAdmin: isFirstUser || isNamedAdmin || isOwner
     };
     dbState.users.push(newUser);
     saveDb();

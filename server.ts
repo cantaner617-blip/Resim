@@ -107,61 +107,71 @@ app.get('/api/local-images/:id', (req, res) => {
 
 // Auth API
 app.post('/api/auth/register', (req, res) => {
-  const { username, email, password } = req.body;
+  try {
+    const { username, email, password } = req.body;
 
-  if (!username || !email || !password) {
-    return res.status(400).json({ error: 'Kullanıcı adı, e-posta ve şifre zorunludur.' });
+    if (!username || !email || !password) {
+      return res.status(400).json({ error: 'Kullanıcı adı, e-posta ve şifre zorunludur.' });
+    }
+
+    if (username.length < 3) {
+      return res.status(400).json({ error: 'Kullanıcı adı en az 3 karakter olmalıdır.' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Şifre en az 6 karakter olmalıdır.' });
+    }
+
+    const existingEmail = db.getUserByEmail(email);
+    if (existingEmail) {
+      return res.status(400).json({ error: 'Bu e-posta adresi zaten kullanımda.' });
+    }
+
+    const existingUsername = db.getUserByUsername(username);
+    if (existingUsername) {
+      return res.status(400).json({ error: 'Bu kullanıcı adı zaten alınmış.' });
+    }
+
+    const passwordHash = pwdUtil.hash(password);
+    const user = db.addUser({
+      username,
+      email,
+      passwordHash
+    });
+
+    const token = signToken({ id: user.id, username: user.username });
+    res.status(201).json({
+      token,
+      user: { id: user.id, username: user.username, email: user.email, isAdmin: user.isAdmin }
+    });
+  } catch (err: any) {
+    console.error("Register error:", err);
+    res.status(500).json({ error: err.message || 'Kayıt işlemi gerçekleştirilirken sunucu tarafında bir hata oluştu.' });
   }
-
-  if (username.length < 3) {
-    return res.status(400).json({ error: 'Kullanıcı adı en az 3 karakter olmalıdır.' });
-  }
-
-  if (password.length < 6) {
-    return res.status(400).json({ error: 'Şifre en az 6 karakter olmalıdır.' });
-  }
-
-  const existingEmail = db.getUserByEmail(email);
-  if (existingEmail) {
-    return res.status(400).json({ error: 'Bu e-posta adresi zaten kullanımda.' });
-  }
-
-  const existingUsername = db.getUserByUsername(username);
-  if (existingUsername) {
-    return res.status(400).json({ error: 'Bu kullanıcı adı zaten alınmış.' });
-  }
-
-  const passwordHash = pwdUtil.hash(password);
-  const user = db.addUser({
-    username,
-    email,
-    passwordHash
-  });
-
-  const token = signToken({ id: user.id, username: user.username });
-  res.status(201).json({
-    token,
-    user: { id: user.id, username: user.username, email: user.email, isAdmin: user.isAdmin }
-  });
 });
 
 app.post('/api/auth/login', (req, res) => {
-  const { email, password } = req.body;
+  try {
+    const { email, password } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ error: 'E-posta ve şifre zorunludur.' });
+    if (!email || !password) {
+      return res.status(400).json({ error: 'E-posta ve şifre zorunludur.' });
+    }
+
+    const user = db.getUserByEmail(email);
+    if (!user || !pwdUtil.verify(password, user.passwordHash)) {
+      return res.status(401).json({ error: 'E-posta veya şifre hatalı.' });
+    }
+
+    const token = signToken({ id: user.id, username: user.username });
+    res.json({
+      token,
+      user: { id: user.id, username: user.username, email: user.email, isAdmin: user.isAdmin }
+    });
+  } catch (err: any) {
+    console.error("Login error:", err);
+    res.status(500).json({ error: err.message || 'Giriş işlemi gerçekleştirilirken sunucu tarafında bir hata oluştu.' });
   }
-
-  const user = db.getUserByEmail(email);
-  if (!user || !pwdUtil.verify(password, user.passwordHash)) {
-    return res.status(401).json({ error: 'E-posta veya şifre hatalı.' });
-  }
-
-  const token = signToken({ id: user.id, username: user.username });
-  res.json({
-    token,
-    user: { id: user.id, username: user.username, email: user.email, isAdmin: user.isAdmin }
-  });
 });
 
 app.get('/api/auth/me', requireAuth, (req: AuthRequest, res) => {
@@ -434,12 +444,12 @@ app.delete('/api/admin/images/:id', requireAdmin, async (req: AuthRequest, res) 
 // ================= VITE OR STATIC SERVING =================
 
 async function start() {
-  // Initialize and synchronize Firestore with the local database
-  try {
-    await db.initFirestore();
-  } catch (dbErr) {
-    console.error("Failed to initialize database connection/sync:", dbErr);
-  }
+  // Initialize and synchronize Firestore with the local database in the background (non-blocking)
+  db.initFirestore().then(() => {
+    console.log("Firestore database synchronization finished in background.");
+  }).catch((dbErr) => {
+    console.error("Failed to initialize database connection/sync in background:", dbErr);
+  });
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
