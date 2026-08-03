@@ -1,5 +1,19 @@
+import { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { Image, LogIn, LogOut, UserPlus, Grid, Cloud, Database, ShieldAlert } from 'lucide-react';
+import { 
+  Image, 
+  LogIn, 
+  LogOut, 
+  UserPlus, 
+  Grid, 
+  Cloud, 
+  Database, 
+  ShieldAlert, 
+  MoreVertical, 
+  Info, 
+  FileText, 
+  HelpCircle 
+} from 'lucide-react';
 import { User, SystemStatus } from '../types';
 
 interface NavbarProps {
@@ -10,6 +24,21 @@ interface NavbarProps {
 
 export default function Navbar({ user, onLogout, systemStatus }: NavbarProps) {
   const navigate = useNavigate();
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   return (
     <header id="site-header" className="sticky top-0 z-50 w-full border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md">
@@ -100,6 +129,59 @@ export default function Navbar({ user, onLogout, systemStatus }: NavbarProps) {
               <span className="hidden sm:inline">Admin Paneli</span>
             </NavLink>
           )}
+
+          {/* Elegant 3-dots Menu Dropdown for Hakkımızda, Kullanım Şartları, Yardım */}
+          <div className="relative" ref={dropdownRef}>
+            <button
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              className={`flex items-center justify-center rounded-lg p-2 text-zinc-400 hover:text-white hover:bg-zinc-900/60 transition-all duration-200 border cursor-pointer ${
+                dropdownOpen ? 'bg-zinc-900 text-white border-zinc-750' : 'border-transparent'
+              }`}
+              title="Bilgi ve Yardım"
+              aria-label="Daha fazla seçenek"
+              id="nav-more-dropdown-trigger"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </button>
+
+            {dropdownOpen && (
+              <div 
+                id="nav-more-dropdown-menu"
+                className="absolute right-0 mt-2 w-56 rounded-xl border border-zinc-800 bg-zinc-950 p-1.5 shadow-2xl ring-1 ring-black/50 z-50 animate-in fade-in slide-in-from-top-2 duration-150"
+              >
+                <div className="px-2.5 py-1.5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider border-b border-zinc-900/60 mb-1">
+                  Platform Bilgileri
+                </div>
+                
+                <Link
+                  to="/hakkimizda"
+                  onClick={() => setDropdownOpen(false)}
+                  className="flex items-center space-x-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:bg-zinc-900 hover:text-white transition-colors"
+                >
+                  <Info className="h-3.5 w-3.5 text-teal-400" />
+                  <span>Hakkımızda &amp; Mimari</span>
+                </Link>
+
+                <Link
+                  to="/sartlar"
+                  onClick={() => setDropdownOpen(false)}
+                  className="flex items-center space-x-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:bg-zinc-900 hover:text-white transition-colors"
+                >
+                  <FileText className="h-3.5 w-3.5 text-teal-400" />
+                  <span>Kullanım Şartları</span>
+                </Link>
+
+                <Link
+                  to="/yardim"
+                  onClick={() => setDropdownOpen(false)}
+                  className="flex items-center space-x-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:bg-zinc-900 hover:text-white transition-colors"
+                >
+                  <HelpCircle className="h-3.5 w-3.5 text-teal-400" />
+                  <span>Yardım &amp; SSS</span>
+                </Link>
+              </div>
+            )}
+          </div>
 
           {/* Profile Actions */}
           {user ? (
