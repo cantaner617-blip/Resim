@@ -6,9 +6,11 @@ import { ImageRecord } from '../types';
 interface ImageDetailProps {
   id: string;
   onBack: () => void;
+  user?: any;
+  systemStatus?: any;
 }
 
-export default function ImageDetail({ id, onBack }: ImageDetailProps) {
+export default function ImageDetail({ id, onBack, user, systemStatus }: ImageDetailProps) {
   const [image, setImage] = useState<ImageRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -243,6 +245,46 @@ export default function ImageDetail({ id, onBack }: ImageDetailProps) {
             </a>
           </div>
 
+          {/* Elegant Sidebar Sponsor Ad Banner */}
+          {systemStatus?.adEnabled && (!user || !user.isPremium) && (
+            <div className="rounded-2xl border border-zinc-900 bg-zinc-950/40 overflow-hidden shadow-sm flex flex-col group transition-all hover:border-amber-500/20">
+              <div className="relative aspect-[16/9] bg-zinc-950/60 overflow-hidden">
+                {systemStatus.adImageUrl ? (
+                  <img
+                    src={systemStatus.adImageUrl}
+                    alt="Sponsorlu"
+                    referrerPolicy="no-referrer"
+                    className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80";
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-zinc-600 font-medium text-xs">Sponsorlu Görsel</div>
+                )}
+                <span className="absolute top-2.5 right-2.5 rounded bg-black/80 px-1.5 py-0.5 text-[8px] font-black text-white tracking-widest uppercase">
+                  Sponsorlu
+                </span>
+              </div>
+              <div className="p-4 space-y-2">
+                <h3 className="text-xs font-bold text-white line-clamp-1">
+                  {systemStatus.adTitle || "Sponsorlu Reklam"}
+                </h3>
+                <p className="text-[11px] text-zinc-400 line-clamp-2 leading-relaxed font-medium">
+                  {systemStatus.adDescription || "Resim yükleme hizmetimizi ücretsiz sunabilmemiz için sponsorumuzu ziyaret edin."}
+                </p>
+                <a
+                  href={systemStatus.adTargetUrl || "https://ai.studio/build"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 w-full rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-amber-400 font-bold text-[11px] py-2 flex items-center justify-center gap-1.5 transition-all text-center"
+                >
+                  <span>{systemStatus.adButtonText || "Detayları Gör"}</span>
+                </a>
+              </div>
+            </div>
+          )}
+
           {/* Sharing URLs block */}
           <div className="rounded-2xl border border-zinc-900 bg-zinc-950/40 p-5 space-y-4 shadow-sm">
             <h2 className="text-sm font-bold text-white tracking-tight">Paylaşım ve Embed Kodları</h2>
@@ -347,7 +389,7 @@ export default function ImageDetail({ id, onBack }: ImageDetailProps) {
                     type="text"
                     readOnly
                     value={embedCodes.markdown}
-                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 pr-10 text-xs text-zinc-200 focus:border-teal-500 focus:outline-none"
+                    className="w-full rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-2 pr-10 text-xs text-zinc-200 focus:border-teal-500 focus:outline-none"
                   />
                   <button
                     onClick={() => handleCopy(embedCodes.markdown, 'markdown')}
@@ -357,6 +399,25 @@ export default function ImageDetail({ id, onBack }: ImageDetailProps) {
                   </button>
                 </div>
               </div>
+
+              {/* Elegant Inline Copy Sponsor Banner */}
+              {systemStatus?.adEnabled && (!user || !user.isPremium) && (
+                <div className="pt-4 border-t border-zinc-900 flex items-center justify-between gap-3 text-[10px] text-zinc-500 font-medium">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="shrink-0 px-1 py-0.5 rounded bg-amber-500/10 text-amber-500 font-extrabold tracking-wider uppercase text-[8px]">Sponsor</span>
+                    <span className="truncate text-zinc-400">{systemStatus.adTitle || "Sponsorlu Reklam"}</span>
+                  </div>
+                  <a
+                    href={systemStatus.adTargetUrl || "https://ai.studio/build"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 text-amber-500 hover:text-amber-400 font-bold hover:underline flex items-center gap-0.5"
+                  >
+                    <span>{systemStatus.adButtonText || "Ziyaret Et"}</span>
+                    <span>→</span>
+                  </a>
+                </div>
+              )}
 
             </div>
 

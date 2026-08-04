@@ -385,6 +385,52 @@ export default function App() {
 
                 </div>
 
+                {/* Elegant Home Page Sponsor Banner */}
+                {systemStatus?.adEnabled && (!user || !user.isPremium) && (
+                  <div className="rounded-3xl border border-zinc-900 bg-zinc-950/20 p-5 sm:p-6 shadow-md relative overflow-hidden flex flex-col md:flex-row items-center gap-5 group" id="home-sponsor-banner">
+                    <div className="absolute top-0 left-0 w-32 h-full bg-amber-500/5 filter blur-2xl pointer-events-none" />
+                    
+                    <div className="relative w-full md:w-48 aspect-video md:aspect-[4/3] rounded-2xl overflow-hidden border border-zinc-900 bg-zinc-950 shrink-0">
+                      {systemStatus.adImageUrl ? (
+                        <img
+                          src={systemStatus.adImageUrl}
+                          alt="Sponsorlu"
+                          referrerPolicy="no-referrer"
+                          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80";
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-zinc-600 font-medium text-xs">Sponsorlu Görsel</div>
+                      )}
+                      <span className="absolute top-2.5 left-2.5 rounded bg-black/80 px-1.5 py-0.5 text-[8px] font-black text-white tracking-widest uppercase">
+                        Sponsorlu
+                      </span>
+                    </div>
+
+                    <div className="flex-1 text-center md:text-left space-y-2">
+                      <h3 className="text-base font-extrabold text-white leading-tight">
+                        {systemStatus.adTitle || "Sponsorlu Reklam"}
+                      </h3>
+                      <p className="text-xs text-zinc-400 leading-relaxed max-w-xl">
+                        {systemStatus.adDescription || "Resim yükleme hizmetimizi ücretsiz sunabilmemiz için sponsorumuzu ziyaret edin."}
+                      </p>
+                    </div>
+
+                    <div className="w-full md:w-auto shrink-0">
+                      <a
+                        href={systemStatus.adTargetUrl || "https://ai.studio/build"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full md:w-auto inline-flex items-center justify-center rounded-xl bg-amber-500 hover:bg-amber-400 px-5 py-3 text-xs font-black text-zinc-950 transition-all duration-200 shadow-lg shadow-amber-500/10 active:scale-95"
+                      >
+                        {systemStatus.adButtonText || "Detayları Gör"}
+                      </a>
+                    </div>
+                  </div>
+                )}
+
               </div>
             } />
 
@@ -421,7 +467,7 @@ export default function App() {
 
             {/* Image Details Route */}
             <Route path="/i/:id" element={
-              <ImageDetailWrapper />
+              <ImageDetailWrapper user={user} systemStatus={systemStatus} />
             } />
 
             {/* Admin Panel Route */}
@@ -482,9 +528,9 @@ export default function App() {
 
 // Helper wrapper to extract params natively from route
 import { useParams } from 'react-router-dom';
-function ImageDetailWrapper() {
+function ImageDetailWrapper({ user, systemStatus }: { user: any; systemStatus: any }) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   if (!id) return <Navigate to="/" replace />;
-  return <ImageDetail id={id} onBack={() => navigate('/')} />;
+  return <ImageDetail id={id} onBack={() => navigate('/')} user={user} systemStatus={systemStatus} />;
 }
