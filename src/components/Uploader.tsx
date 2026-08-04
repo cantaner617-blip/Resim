@@ -1088,49 +1088,6 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
             </div>
           </div>
 
-          {/* Success Page Banner Ad */}
-          {systemStatus?.adEnabled && (!user || !user.isPremium) && (
-            <div className="rounded-2xl border border-zinc-900 bg-zinc-950/30 p-4 flex flex-col sm:flex-row items-center gap-4 relative overflow-hidden group hover:border-amber-500/20 transition-all duration-300" id="success-banner-ad">
-              <div className="absolute top-0 left-0 w-24 h-full bg-amber-500/5 filter blur-xl pointer-events-none" />
-              <div className="relative w-full sm:w-28 aspect-video sm:aspect-[4/3] rounded-lg overflow-hidden border border-zinc-900 bg-zinc-950 shrink-0">
-                {systemStatus.adImageUrl ? (
-                  <img
-                    src={systemStatus.adImageUrl}
-                    alt="Sponsorlu"
-                    referrerPolicy="no-referrer"
-                    className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80";
-                    }}
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-zinc-600 font-medium text-[10px]">Sponsorlu</div>
-                )}
-                <span className="absolute top-1.5 left-1.5 rounded bg-black/80 px-1 py-0.5 text-[7px] font-black text-white tracking-wider uppercase">
-                  Sponsorlu
-                </span>
-              </div>
-              <div className="flex-1 text-center sm:text-left space-y-1">
-                <h4 className="text-xs font-extrabold text-white leading-tight">
-                  {systemStatus.adTitle || "Sponsorlu Reklam"}
-                </h4>
-                <p className="text-[11px] text-zinc-400 leading-normal line-clamp-2 max-w-xl">
-                  {systemStatus.adDescription || "Resim yükleme hizmetimizi ücretsiz sunabilmemiz için sponsorumuzu ziyaret edin."}
-                </p>
-              </div>
-              <div className="shrink-0 w-full sm:w-auto">
-                <a
-                  href={systemStatus.adTargetUrl || "https://ai.studio/build"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full sm:w-auto inline-flex items-center justify-center rounded-xl bg-amber-500 hover:bg-amber-400 px-4 py-2 text-xs font-black text-zinc-950 transition-all active:scale-95 shadow-md shadow-amber-500/10"
-                >
-                  {systemStatus.adButtonText || "Detayları Gör"}
-                </a>
-              </div>
-            </div>
-          )}
-
           <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
             
             {/* Thumbnail Preview */}

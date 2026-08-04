@@ -24,6 +24,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { User, SystemStatus } from '../types';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface NavbarProps {
   user: User | null;
@@ -435,252 +436,295 @@ export default function Navbar({ user, onLogout, systemStatus, themeShade }: Nav
       </header>
 
       {/* FULL-SCREEN SLIDE-OUT MOBILE DRAWER OVERLAY */}
-      {mobileMenuOpen && (
-        <div 
-          className="fixed inset-0 z-50 overflow-hidden md:hidden"
-          id="mobile-menu-overlay"
-        >
-          {/* Backdrop Blur and Dark fade */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
           <div 
-            className="absolute inset-0 bg-black/80 backdrop-blur-md transition-opacity duration-300 ease-out animate-in fade-in"
-            onClick={() => setMobileMenuOpen(false)}
-          />
+            className="fixed inset-0 z-50 overflow-hidden md:hidden"
+            id="mobile-menu-overlay"
+          >
+            {/* Backdrop Blur and Dark fade */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-md"
+              onClick={() => setMobileMenuOpen(false)}
+            />
 
-          {/* Drawer Content Body */}
-          <div className="absolute inset-y-0 right-0 max-w-full flex pl-10">
-            <div className="w-screen max-w-sm bg-zinc-950 border-l border-zinc-900 shadow-2xl flex flex-col justify-between animate-in slide-in-from-right duration-300 ease-out">
-              
-              {/* Header inside the Drawer */}
-              <div className="px-5 py-4 border-b border-zinc-900 flex items-center justify-between bg-zinc-900/10">
-                <div className="flex items-center space-x-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-500/10 text-teal-400 border border-teal-500/20">
-                    <Image className="h-4.5 w-4.5" />
-                  </div>
-                  <span className="text-sm font-black text-white">AnındaResim Menü</span>
-                </div>
-
-                <button
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-800 text-zinc-400 hover:text-white bg-zinc-900/30 active:scale-90 cursor-pointer"
-                  aria-label="Kapat"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              {/* Main Scrolling Body of Drawer */}
-              <div className="flex-1 overflow-y-auto px-5 py-6 space-y-7">
+            {/* Drawer Content Body */}
+            <div className="absolute inset-y-0 right-0 max-w-full flex pl-6">
+              <motion.div 
+                initial={{ x: '100%', filter: 'blur(5px)' }}
+                animate={{ x: 0, filter: 'blur(0px)' }}
+                exit={{ x: '100%', filter: 'blur(5px)' }}
+                transition={{ type: 'spring', damping: 28, stiffness: 240 }}
+                className="w-screen max-w-sm bg-zinc-950/95 border-l border-zinc-900 shadow-[0_0_50px_rgba(0,0,0,0.8)] flex flex-col justify-between backdrop-blur-xl"
+              >
                 
-                {/* User Info Card in Drawer */}
-                <div>
-                  {user ? (
-                    <div className="bg-gradient-to-br from-zinc-900/90 to-zinc-950 border border-zinc-800 rounded-xl p-4 shadow-inner relative overflow-hidden">
-                      {/* Accent glow */}
-                      <div className="absolute top-0 right-0 w-24 h-24 bg-teal-500/5 rounded-full blur-xl -mr-6 -mt-6 pointer-events-none" />
-                      
-                      <div className="flex items-center space-x-3 relative z-10">
-                        <div className={`flex h-11 w-11 items-center justify-center rounded-xl text-sm font-black shadow-md ${
-                          user.isPremium 
-                            ? 'bg-gradient-to-tr from-amber-400 to-yellow-500 text-zinc-950 shadow-amber-500/20 animate-pulse' 
-                            : 'bg-gradient-to-tr from-teal-500 to-emerald-500 text-zinc-950 shadow-teal-500/10'
-                        }`}>
-                          {getInitials(user.username)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Oturum Sahibi</p>
-                          <h4 className="text-sm font-extrabold text-white truncate mt-0.5 flex items-center gap-1">
-                            {user.username}
-                            {user.isPremium && <Sparkles className="h-3.5 w-3.5 text-amber-400 fill-amber-400 inline" />}
-                          </h4>
-                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold mt-1 ${
-                            user.isAdmin ? 'bg-rose-400/10 text-rose-400' : user.isPremium ? 'bg-amber-400/10 text-amber-400 border border-amber-500/20' : 'bg-teal-400/10 text-teal-400'
+                {/* Header inside the Drawer */}
+                <div className="px-6 py-5 border-b border-zinc-900/60 flex items-center justify-between bg-zinc-950/40">
+                  <div className="flex items-center space-x-2.5">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20 shadow-lg shadow-teal-500/5">
+                      <Image className="h-5 w-5" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-black tracking-tight text-white">AnındaResim</span>
+                      <span className="text-[10px] text-zinc-500 font-bold tracking-widest uppercase">Navigasyon</span>
+                    </div>
+                  </div>
+
+                  <motion.button
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-900 text-zinc-400 hover:text-white bg-zinc-950 hover:bg-zinc-900 active:scale-90 transition-colors cursor-pointer"
+                    aria-label="Kapat"
+                  >
+                    <X className="h-4.5 w-4.5" />
+                  </motion.button>
+                </div>
+
+                {/* Main Scrolling Body of Drawer */}
+                <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8 scrollbar-thin">
+                  
+                  {/* User Info Card in Drawer */}
+                  <div>
+                    {user ? (
+                      <div className="bg-gradient-to-b from-zinc-900 to-zinc-950 border border-zinc-900 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/5 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
+                        
+                        <div className="flex items-center space-x-4 relative z-10">
+                          <div className={`flex h-12 w-12 items-center justify-center rounded-2xl text-sm font-black shadow-lg ${
+                            user.isPremium 
+                              ? 'bg-gradient-to-tr from-amber-400 to-yellow-500 text-zinc-950 shadow-amber-500/25 animate-pulse' 
+                              : 'bg-gradient-to-tr from-teal-500 to-emerald-500 text-zinc-950 shadow-teal-500/10'
                           }`}>
-                            {user.isAdmin ? 'Yönetici Hesabı' : user.isPremium ? 'Premium Üye' : 'Standart Üye'}
-                          </span>
+                            {getInitials(user.username)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[9px] text-zinc-500 font-black uppercase tracking-wider">Oturum Açık</p>
+                            <h4 className="text-sm font-black text-white truncate mt-0.5 flex items-center gap-1.5">
+                              {user.username}
+                              {user.isPremium && <Sparkles className="h-3.5 w-3.5 text-amber-400 fill-amber-400 inline" />}
+                            </h4>
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black mt-1.5 uppercase tracking-wider ${
+                              user.isAdmin 
+                                ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' 
+                                : user.isPremium 
+                                  ? 'bg-amber-400/10 text-amber-400 border border-amber-500/20' 
+                                  : 'bg-teal-400/10 text-teal-400 border border-teal-500/20'
+                            }`}>
+                              {user.isAdmin ? 'Yönetici' : user.isPremium ? 'Premium Üye' : 'Standart Üye'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Explicit Logout Button inside account card */}
+                        <motion.button
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => {
+                            setMobileMenuOpen(false);
+                            onLogout();
+                            navigate('/');
+                          }}
+                          className="w-full mt-5 flex items-center justify-center space-x-2 rounded-xl bg-red-500/5 hover:bg-red-500/10 border border-red-500/10 hover:border-red-500/20 py-2.5 text-xs font-bold text-red-400 transition-all cursor-pointer"
+                        >
+                          <LogOut className="h-4 w-4" />
+                          <span>Oturumu Kapat</span>
+                        </motion.button>
+                      </div>
+                    ) : (
+                      <div className="bg-zinc-900/20 border border-dashed border-zinc-900 rounded-2xl p-5 text-center relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-24 h-24 bg-teal-500/5 rounded-full blur-xl -ml-6 -mt-6 pointer-events-none" />
+                        <p className="text-xs text-zinc-400 leading-relaxed mb-4 font-medium relative z-10">
+                          Resimlerinizi ömür boyu saklamak, kategorize etmek ve dilediğiniz an erişmek için ücretsiz hesap açın!
+                        </p>
+                        <div className="grid grid-cols-2 gap-2.5 relative z-10">
+                          <Link
+                            to="/giris"
+                            onClick={() => setMobileMenuOpen(false)}
+                            className="flex items-center justify-center space-x-1.5 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-xs font-black text-zinc-200 hover:text-white hover:bg-zinc-900 transition-all active:scale-95"
+                          >
+                            <LogIn className="h-3.5 w-3.5 text-teal-400" />
+                            <span>Giriş Yap</span>
+                          </Link>
+                          <Link
+                            to="/kayit"
+                            onClick={() => setMobileMenuOpen(false)}
+                            className="flex items-center justify-center space-x-1.5 rounded-xl bg-teal-500 hover:bg-teal-400 px-3 py-2.5 text-xs font-black text-zinc-950 transition-all active:scale-95 shadow-lg shadow-teal-500/10"
+                          >
+                            <UserPlus className="h-3.5 w-3.5" />
+                            <span>Kayıt Ol</span>
+                          </Link>
                         </div>
                       </div>
+                    )}
+                  </div>
 
-                      {/* Explicit Logout Button inside account card */}
-                      <button
-                        onClick={() => {
-                          setMobileMenuOpen(false);
-                          onLogout();
-                          navigate('/');
-                        }}
-                        className="w-full mt-4 flex items-center justify-center space-x-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 py-2.5 text-xs font-bold text-red-400 active:scale-[0.98] transition-all cursor-pointer"
+                  {/* Primary Navigation Links */}
+                  <div className="space-y-2.5">
+                    <h5 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest px-2">Ana Menü</h5>
+                    
+                    <div className="space-y-1.5">
+                      <Link
+                        to="/"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`flex items-center space-x-3.5 px-3.5 py-3 rounded-xl text-xs font-extrabold transition-all duration-200 ${
+                          location.pathname === '/' 
+                            ? 'bg-teal-500/10 text-teal-400 border border-teal-500/10 font-black shadow-inner' 
+                            : 'text-zinc-400 hover:bg-zinc-900/30 hover:text-white'
+                        }`}
                       >
-                        <LogOut className="h-4 w-4" />
-                        <span>Oturumu Kapat (Çıkış Yap)</span>
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="bg-zinc-900/40 border border-dashed border-zinc-800 rounded-xl p-4 text-center">
-                      <p className="text-xs text-zinc-400 font-medium mb-3">Hesabınıza giriş yaparak yüklediğiniz resimleri arşivleyebilirsiniz.</p>
-                      <div className="grid grid-cols-2 gap-2">
+                        <Image className="h-4 w-4 text-teal-400 shrink-0" />
+                        <span className="flex-1">Görsel Yükleme Paneli</span>
+                        {location.pathname === '/' && <span className="h-1.5 w-1.5 rounded-full bg-teal-400 shadow-[0_0_8px_rgba(45,212,191,0.5)]" />}
+                      </Link>
+
+                      {systemStatus?.premiumEnabled && (
                         <Link
-                          to="/giris"
+                          to="/premium"
                           onClick={() => setMobileMenuOpen(false)}
-                          className="flex items-center justify-center space-x-1.5 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs font-bold text-zinc-200 active:scale-95 transition-all"
+                          className={`flex items-center space-x-3.5 px-3.5 py-3 rounded-xl text-xs font-extrabold transition-all duration-200 ${
+                            location.pathname === '/premium' 
+                              ? 'bg-amber-500/10 text-amber-400 border border-amber-500/10 font-black' 
+                              : 'text-amber-400 hover:bg-amber-500/5'
+                          }`}
                         >
-                          <LogIn className="h-3.5 w-3.5 text-teal-400" />
-                          <span>Giriş Yap</span>
+                          <Sparkles className="h-4 w-4 text-amber-400 fill-amber-400/10 shrink-0 animate-pulse" />
+                          <span className="flex-1">Premium Paketler</span>
+                          {location.pathname === '/premium' && <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.5)]" />}
                         </Link>
+                      )}
+
+                      {user && (
                         <Link
-                          to="/kayit"
+                          to="/galerim"
                           onClick={() => setMobileMenuOpen(false)}
-                          className="flex items-center justify-center space-x-1.5 rounded-lg bg-gradient-to-r from-teal-500 to-emerald-500 px-3 py-2 text-xs font-black text-zinc-950 active:scale-95 transition-all shadow-md shadow-teal-500/5"
+                          className={`flex items-center space-x-3.5 px-3.5 py-3 rounded-xl text-xs font-extrabold transition-all duration-200 ${
+                            location.pathname === '/galerim' 
+                              ? 'bg-teal-500/10 text-teal-400 border border-teal-500/10 font-black' 
+                              : 'text-zinc-400 hover:bg-zinc-900/30 hover:text-white'
+                        }`}
+                      >
+                        <Grid className="h-4 w-4 text-teal-400 shrink-0" />
+                        <span className="flex-1">Benim Görsellerim</span>
+                        {location.pathname === '/galerim' && <span className="h-1.5 w-1.5 rounded-full bg-teal-400 shadow-[0_0_8px_rgba(45,212,191,0.5)]" />}
+                      </Link>
+                      )}
+
+                      {user?.isAdmin && (
+                        <Link
+                          to="/admin"
+                          onClick={() => setMobileMenuOpen(false)}
+                          className={`flex items-center space-x-3.5 px-3.5 py-3 rounded-xl text-xs font-extrabold transition-all duration-200 ${
+                            location.pathname === '/admin' 
+                              ? 'bg-rose-500/10 text-rose-400 border border-rose-500/10 font-black' 
+                              : 'text-rose-400 hover:bg-rose-500/5'
+                          }`}
                         >
-                          <UserPlus className="h-3.5 w-3.5" />
-                          <span>Kayıt Ol</span>
+                          <Shield className="h-4 w-4 text-rose-400 shrink-0" />
+                          <span className="flex-1">Yönetici Paneli</span>
+                          {location.pathname === '/admin' && <span className="h-1.5 w-1.5 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.5)]" />}
                         </Link>
-                      </div>
+                      )}
                     </div>
-                  )}
+                  </div>
+
+                  {/* Informational Pages Links */}
+                  <div className="space-y-2.5">
+                    <h5 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest px-2">Kurumsal &amp; Yardım</h5>
+                    
+                    <div className="space-y-1">
+                      <Link
+                        to="/hakkimizda"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`flex items-center space-x-3.5 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${
+                          location.pathname === '/hakkimizda' ? 'bg-zinc-900 text-white' : 'text-zinc-400 hover:bg-zinc-900/20 hover:text-white'
+                        }`}
+                      >
+                        <Info className="h-4 w-4 text-teal-400 shrink-0" />
+                        <span>Hakkımızda &amp; Altyapı</span>
+                      </Link>
+
+                      <Link
+                        to="/sartlar"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`flex items-center space-x-3.5 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${
+                          location.pathname === '/sartlar' ? 'bg-zinc-900 text-white' : 'text-zinc-400 hover:bg-zinc-900/20 hover:text-white'
+                        }`}
+                      >
+                        <FileText className="h-4 w-4 text-teal-400 shrink-0" />
+                        <span>Kullanım Koşulları</span>
+                      </Link>
+
+                      <Link
+                        to="/yardim"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`flex items-center space-x-3.5 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${
+                          location.pathname === '/yardim' ? 'bg-zinc-900 text-white' : 'text-zinc-400 hover:bg-zinc-900/20 hover:text-white'
+                        }`}
+                      >
+                        <HelpCircle className="h-4 w-4 text-teal-400 shrink-0" />
+                        <span>SSS &amp; Kılavuz</span>
+                      </Link>
+                    </div>
+                  </div>
+
+                  {/* Destek & DMCA Bildirim Links */}
+                  <div className="space-y-2.5">
+                    <h5 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest px-2">Güvenlik &amp; İletişim</h5>
+                    
+                    <div className="space-y-1">
+                      <Link
+                        to="/ihbar"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`flex items-center space-x-3.5 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${
+                          location.pathname === '/ihbar' ? 'bg-red-950/20 text-red-400 border border-red-900/20' : 'text-red-400/80 hover:bg-red-950/10 hover:text-red-400'
+                        }`}
+                      >
+                        <ShieldAlert className="h-4 w-4 text-red-500 shrink-0" />
+                        <span>İhlal Bildirimi (DMCA)</span>
+                      </Link>
+
+                      <Link
+                        to="/destek"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`flex items-center space-x-3.5 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${
+                          location.pathname === '/destek' ? 'bg-zinc-900 text-white' : 'text-zinc-400 hover:bg-zinc-900/20 hover:text-white'
+                        }`}
+                      >
+                        <MessageSquare className="h-4 w-4 text-teal-400 shrink-0" />
+                        <span>7/24 Teknik Destek</span>
+                      </Link>
+                    </div>
+                  </div>
+
                 </div>
 
-                {/* Primary Navigation Links */}
-                <div className="space-y-2">
-                  <h5 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest px-2 mb-1.5">Ana Menü</h5>
-                  
-                  <Link
-                    to="/"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center space-x-3 px-3 py-3 rounded-lg text-sm font-semibold transition-colors ${
-                      location.pathname === '/' 
-                        ? 'bg-teal-500/10 text-teal-400 border border-teal-500/10' 
-                        : 'text-zinc-300 hover:bg-zinc-900/50 hover:text-white'
-                    }`}
-                  >
-                    <Sparkles className="h-4.5 w-4.5 text-teal-400" />
-                    <span>Görsel Yükleme Paneli</span>
-                  </Link>
-
-                  {systemStatus?.premiumEnabled && (
-                    <Link
-                      to="/premium"
-                      onClick={() => setMobileMenuOpen(false)}
-                      className={`flex items-center space-x-3 px-3 py-3 rounded-lg text-sm font-bold transition-colors ${
-                        location.pathname === '/premium' 
-                          ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20' 
-                          : 'text-amber-400 hover:bg-amber-500/5'
-                      }`}
-                    >
-                      <Sparkles className="h-4.5 w-4.5 text-amber-400 fill-amber-400/20 animate-pulse" />
-                      <span>Premium Paketler</span>
-                    </Link>
-                  )}
-
-                  {user && (
-                    <Link
-                      to="/galerim"
-                      onClick={() => setMobileMenuOpen(false)}
-                      className={`flex items-center space-x-3 px-3 py-3 rounded-lg text-sm font-semibold transition-colors ${
-                        location.pathname === '/galerim' 
-                          ? 'bg-teal-500/10 text-teal-400 border border-teal-500/10' 
-                          : 'text-zinc-300 hover:bg-zinc-900/50 hover:text-white'
-                      }`}
-                    >
-                      <Grid className="h-4.5 w-4.5 text-teal-400" />
-                      <span>Benim Görsellerim</span>
-                    </Link>
-                  )}
-
-                  {user?.isAdmin && (
-                    <Link
-                      to="/admin"
-                      onClick={() => setMobileMenuOpen(false)}
-                      className={`flex items-center space-x-3 px-3 py-3 rounded-lg text-sm font-semibold transition-colors ${
-                        location.pathname === '/admin' 
-                          ? 'bg-rose-500/10 text-rose-400 border border-rose-500/10' 
-                          : 'text-rose-400/80 hover:bg-rose-500/5'
-                      }`}
-                    >
-                      <ShieldAlert className="h-4.5 w-4.5" />
-                      <span>Yönetici Paneli (Admin)</span>
-                    </Link>
-                  )}
+                {/* Footer inside the Drawer */}
+                <div className="p-6 border-t border-zinc-900 bg-zinc-950 text-center space-y-3">
+                  <div className="flex items-center justify-center space-x-2 text-[10px] text-zinc-500 font-black uppercase tracking-wider">
+                    <span>Sistem Durumu:</span>
+                    {systemStatus?.isCloudinaryConfigured ? (
+                      <span className="text-teal-400 flex items-center space-x-1 font-extrabold bg-teal-500/5 px-2 py-0.5 rounded border border-teal-500/10">
+                        <span className="h-1.5 w-1.5 rounded-full bg-teal-400 animate-ping mr-1" />
+                        Cloudinary
+                      </span>
+                    ) : (
+                      <span className="text-amber-500 flex items-center space-x-1 font-extrabold bg-amber-500/5 px-2 py-0.5 rounded border border-amber-500/10">
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse mr-1" />
+                        Yerel Depo
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-zinc-600 font-bold">© 2026 AnındaResim. Tüm Hakları Saklıdır.</p>
                 </div>
 
-                {/* Informational Pages Links */}
-                <div className="space-y-2">
-                  <h5 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest px-2 mb-1.5">Kurumsal &amp; Yardım</h5>
-                  
-                  <Link
-                    to="/hakkimizda"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-zinc-300 hover:bg-zinc-900/50 hover:text-white transition-colors"
-                  >
-                    <Info className="h-4.5 w-4.5 text-teal-400" />
-                    <span>Hakkımızda &amp; Altyapı</span>
-                  </Link>
-
-                  <Link
-                    to="/sartlar"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-zinc-300 hover:bg-zinc-900/50 hover:text-white transition-colors"
-                  >
-                    <FileText className="h-4.5 w-4.5 text-teal-400" />
-                    <span>Kullanım Koşulları</span>
-                  </Link>
-
-                  <Link
-                    to="/yardim"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-zinc-300 hover:bg-zinc-900/50 hover:text-white transition-colors"
-                  >
-                    <HelpCircle className="h-4.5 w-4.5 text-teal-400" />
-                    <span>SSS &amp; Kılavuz</span>
-                  </Link>
-                </div>
-
-                {/* Destek & DMCA Bildirim Links */}
-                <div className="space-y-2">
-                  <h5 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest px-2 mb-1.5">Destek &amp; Bildirim</h5>
-                  
-                  <Link
-                    to="/ihbar"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-red-400 hover:bg-red-950/20 hover:text-red-300 transition-colors"
-                  >
-                    <ShieldAlert className="h-4.5 w-4.5 text-red-500" />
-                    <span>İhlal Bildirimi (DMCA)</span>
-                  </Link>
-
-                  <Link
-                    to="/destek"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-zinc-300 hover:bg-zinc-900/50 hover:text-white transition-colors"
-                  >
-                    <MessageSquare className="h-4.5 w-4.5 text-teal-400" />
-                    <span>7/24 Teknik Destek</span>
-                  </Link>
-                </div>
-
-              </div>
-
-              {/* Footer inside the Drawer */}
-              <div className="p-5 border-t border-zinc-900 bg-zinc-950/90 text-center">
-                <div className="flex items-center justify-center space-x-2 text-xs text-zinc-500 font-semibold mb-1">
-                  <span>Sistem Altyapısı:</span>
-                  {systemStatus?.isCloudinaryConfigured ? (
-                    <span className="text-teal-400 flex items-center space-x-1 font-bold">
-                      <Cloud className="h-3.5 w-3.5 inline mr-0.5" />
-                      Cloudinary Bulut
-                    </span>
-                  ) : (
-                    <span className="text-amber-500 flex items-center space-x-1 font-bold">
-                      <Database className="h-3.5 w-3.5 inline mr-0.5" />
-                      Yerel Sunucu
-                    </span>
-                  )}
-                </div>
-                <p className="text-[10px] text-zinc-600 font-medium">© 2026 AnındaResim. Tüm hakları saklıdır.</p>
-              </div>
-
+              </motion.div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </>
   );
 }
