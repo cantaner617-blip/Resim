@@ -11,6 +11,7 @@ import Terms from './components/Terms';
 import Help from './components/Help';
 import ReportAbuse from './components/ReportAbuse';
 import Support from './components/Support';
+import Premium from './components/Premium';
 import { User, SystemStatus } from './types';
 import { ShieldCheck, Zap, Globe, Heart, AlertTriangle, Hammer, LogIn, Megaphone, X, Sparkles, Gauge, Cloud, Code, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -437,7 +438,8 @@ export default function App() {
             <Route path="/sartlar" element={<Terms />} />
             <Route path="/yardim" element={<Help />} />
             <Route path="/ihbar" element={<ReportAbuse />} />
-            <Route path="/destek" element={<Support />} />
+            <Route path="/destek" element={<Support user={user} />} />
+            <Route path="/premium" element={<Premium user={user} systemStatus={systemStatus} onRefreshSession={checkSession} />} />
 
             {/* Catch-all Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />

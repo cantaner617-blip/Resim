@@ -180,6 +180,23 @@ export default function Navbar({ user, onLogout, systemStatus, themeShade }: Nav
               </NavLink>
             )}
 
+            {systemStatus?.premiumEnabled && (
+              <NavLink
+                to="/premium"
+                id="nav-premium-btn"
+                className={({ isActive }) => 
+                  `flex items-center space-x-1.5 rounded-lg px-3 py-1.5 text-xs lg:text-sm font-bold transition-all duration-200 cursor-pointer ${
+                    isActive 
+                      ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30 shadow-sm shadow-amber-500/5' 
+                      : 'text-amber-400/90 hover:bg-amber-500/5 hover:text-amber-300 border border-transparent'
+                  }`
+                }
+              >
+                <Sparkles className="h-3.5 w-3.5 animate-pulse text-amber-400 fill-amber-400/20" />
+                <span>Premium Satın Al</span>
+              </NavLink>
+            )}
+
             {user?.isAdmin && (
               <NavLink
                 to="/admin"
@@ -279,14 +296,23 @@ export default function Navbar({ user, onLogout, systemStatus, themeShade }: Nav
                 {/* Profile Pill Trigger */}
                 <button
                   onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                  className="flex items-center space-x-2 rounded-lg p-1.5 hover:bg-zinc-900/60 transition-all duration-200 cursor-pointer border border-transparent hover:border-zinc-800"
+                  className={`flex items-center space-x-2 rounded-lg p-1.5 hover:bg-zinc-900/60 transition-all duration-200 cursor-pointer border ${
+                    user.isPremium ? 'border-amber-500/20 bg-amber-500/[0.03]' : 'border-transparent hover:border-zinc-800'
+                  }`}
                 >
-                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-tr from-teal-500 to-emerald-500 text-zinc-950 text-xs font-black shadow-md shadow-teal-500/10">
+                  <div className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-black shadow-md ${
+                    user.isPremium 
+                      ? 'bg-gradient-to-tr from-amber-400 to-yellow-500 text-zinc-950 shadow-amber-500/20' 
+                      : 'bg-gradient-to-tr from-teal-500 to-emerald-500 text-zinc-950 shadow-teal-500/10'
+                  }`}>
                     {getInitials(user.username)}
                   </div>
                   <div className="flex flex-col text-left">
                     <span className="text-[10px] text-zinc-500 font-semibold leading-none">Oturum Açık</span>
-                    <span className="text-xs font-bold text-zinc-200 leading-none mt-0.5 max-w-[80px] truncate">{user.username}</span>
+                    <span className="text-xs font-bold text-zinc-200 leading-none mt-0.5 max-w-[80px] truncate flex items-center gap-0.5">
+                      {user.username}
+                      {user.isPremium && <Sparkles className="h-3 w-3 text-amber-400 fill-amber-400 shrink-0" />}
+                    </span>
                   </div>
                   <ChevronDown className="h-3 w-3 text-zinc-500" />
                 </button>
@@ -297,7 +323,10 @@ export default function Navbar({ user, onLogout, systemStatus, themeShade }: Nav
                   >
                     <div className="px-2.5 py-2 border-b border-zinc-900 mb-1">
                       <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-0.5">Kullanıcı Hesabı</p>
-                      <p className="text-xs font-bold text-teal-400 truncate">{user.username}</p>
+                      <p className="text-xs font-bold text-teal-400 truncate flex items-center gap-1">
+                        {user.username}
+                        {user.isPremium && <span className="inline-flex items-center rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[8px] font-black tracking-widest px-1 py-0.5 leading-none shrink-0">PREMIUM</span>}
+                      </p>
                     </div>
 
                     <Link
@@ -450,14 +479,23 @@ export default function Navbar({ user, onLogout, systemStatus, themeShade }: Nav
                       <div className="absolute top-0 right-0 w-24 h-24 bg-teal-500/5 rounded-full blur-xl -mr-6 -mt-6 pointer-events-none" />
                       
                       <div className="flex items-center space-x-3 relative z-10">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-tr from-teal-500 to-emerald-500 text-zinc-950 text-sm font-black shadow-md shadow-teal-500/10">
+                        <div className={`flex h-11 w-11 items-center justify-center rounded-xl text-sm font-black shadow-md ${
+                          user.isPremium 
+                            ? 'bg-gradient-to-tr from-amber-400 to-yellow-500 text-zinc-950 shadow-amber-500/20 animate-pulse' 
+                            : 'bg-gradient-to-tr from-teal-500 to-emerald-500 text-zinc-950 shadow-teal-500/10'
+                        }`}>
                           {getInitials(user.username)}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Oturum Sahibi</p>
-                          <h4 className="text-sm font-extrabold text-white truncate mt-0.5">{user.username}</h4>
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-teal-400/10 text-teal-400 mt-1">
-                            {user.isAdmin ? 'Yönetici Hesabı' : 'Standart Üye'}
+                          <h4 className="text-sm font-extrabold text-white truncate mt-0.5 flex items-center gap-1">
+                            {user.username}
+                            {user.isPremium && <Sparkles className="h-3.5 w-3.5 text-amber-400 fill-amber-400 inline" />}
+                          </h4>
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold mt-1 ${
+                            user.isAdmin ? 'bg-rose-400/10 text-rose-400' : user.isPremium ? 'bg-amber-400/10 text-amber-400 border border-amber-500/20' : 'bg-teal-400/10 text-teal-400'
+                          }`}>
+                            {user.isAdmin ? 'Yönetici Hesabı' : user.isPremium ? 'Premium Üye' : 'Standart Üye'}
                           </span>
                         </div>
                       </div>
@@ -516,6 +554,21 @@ export default function Navbar({ user, onLogout, systemStatus, themeShade }: Nav
                     <Sparkles className="h-4.5 w-4.5 text-teal-400" />
                     <span>Görsel Yükleme Paneli</span>
                   </Link>
+
+                  {systemStatus?.premiumEnabled && (
+                    <Link
+                      to="/premium"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`flex items-center space-x-3 px-3 py-3 rounded-lg text-sm font-bold transition-colors ${
+                        location.pathname === '/premium' 
+                          ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20' 
+                          : 'text-amber-400 hover:bg-amber-500/5'
+                      }`}
+                    >
+                      <Sparkles className="h-4.5 w-4.5 text-amber-400 fill-amber-400/20 animate-pulse" />
+                      <span>Premium Paketler</span>
+                    </Link>
+                  )}
 
                   {user && (
                     <Link

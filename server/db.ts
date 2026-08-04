@@ -13,6 +13,9 @@ export interface User {
   passwordHash: string;
   createdAt: string;
   isAdmin?: boolean;
+  isPremium?: boolean;
+  premiumExpiresAt?: string | null;
+  premiumPlan?: 'monthly' | 'yearly' | null;
 }
 
 export interface ImageRecord {
@@ -53,6 +56,13 @@ export interface SystemConfig {
   adDescription?: string;
   adButtonText?: string;
   adDuration?: number;
+  premiumEnabled?: boolean;
+  premiumMonthlyPrice?: number;
+  premiumYearlyPrice?: number;
+  adShowToRegistered?: boolean;
+  bankName?: string;
+  bankIban?: string;
+  bankReceiver?: string;
 }
 
 export interface AbuseReport {
@@ -75,6 +85,9 @@ export interface SupportMessage {
   message: string;
   status: 'unread' | 'read' | 'resolved';
   createdAt: string;
+  isPremium?: boolean;
+  adminReply?: string;
+  repliedAt?: string;
 }
 
 interface DatabaseSchema {
@@ -103,6 +116,10 @@ function initDb(): DatabaseSchema {
       adDescription: "Resim yükleme hizmetimizi ücretsiz sunabilmemiz için sponsorumuzu ziyaret edin.",
       adButtonText: "Sponsoru Ziyaret Et",
       adDuration: 5,
+      premiumEnabled: true,
+      premiumMonthlyPrice: 150,
+      premiumYearlyPrice: 1200,
+      adShowToRegistered: true,
     },
     reports: [],
     supportMessages: [],
@@ -131,6 +148,10 @@ function initDb(): DatabaseSchema {
         adDescription: "Resim yükleme hizmetimizi ücretsiz sunabilmemiz için sponsorumuzu ziyaret edin.",
         adButtonText: "Sponsoru Ziyaret Et",
         adDuration: 5,
+        premiumEnabled: true,
+        premiumMonthlyPrice: 150,
+        premiumYearlyPrice: 1200,
+        adShowToRegistered: true,
       };
     } else {
       if (!parsed.systemConfig.announcements) {
@@ -159,6 +180,18 @@ function initDb(): DatabaseSchema {
       }
       if (parsed.systemConfig.adDuration === undefined) {
         parsed.systemConfig.adDuration = 5;
+      }
+      if (parsed.systemConfig.premiumEnabled === undefined) {
+        parsed.systemConfig.premiumEnabled = true;
+      }
+      if (parsed.systemConfig.premiumMonthlyPrice === undefined) {
+        parsed.systemConfig.premiumMonthlyPrice = 150;
+      }
+      if (parsed.systemConfig.premiumYearlyPrice === undefined) {
+        parsed.systemConfig.premiumYearlyPrice = 1200;
+      }
+      if (parsed.systemConfig.adShowToRegistered === undefined) {
+        parsed.systemConfig.adShowToRegistered = true;
       }
     }
     // Ensure collections exist
@@ -282,7 +315,30 @@ export const db = {
       const configDocRef = doc(fsDb, 'systemConfig', 'config');
       const configDoc = await getDocFromServer(configDocRef);
       if (configDoc.exists()) {
-        dbState.systemConfig = configDoc.data() as SystemConfig;
+        const data = configDoc.data() as SystemConfig;
+        dbState.systemConfig = {
+          ...dbState.systemConfig,
+          ...data
+        };
+        // Ensure defaults are assigned if missing
+        if (dbState.systemConfig.premiumEnabled === undefined) {
+          dbState.systemConfig.premiumEnabled = true;
+        }
+        if (dbState.systemConfig.premiumMonthlyPrice === undefined) {
+          dbState.systemConfig.premiumMonthlyPrice = 150;
+        }
+        if (dbState.systemConfig.premiumYearlyPrice === undefined) {
+          dbState.systemConfig.premiumYearlyPrice = 1200;
+        }
+        if (dbState.systemConfig.bankName === undefined) {
+          dbState.systemConfig.bankName = 'Akbank';
+        }
+        if (dbState.systemConfig.bankIban === undefined) {
+          dbState.systemConfig.bankIban = 'TR56 0004 6000 1580 0745 9931 10';
+        }
+        if (dbState.systemConfig.bankReceiver === undefined) {
+          dbState.systemConfig.bankReceiver = 'ANINDARSİM YAZILIM BİLİŞİM LİMİTED ŞİRKETİ';
+        }
         console.log("Loaded system configuration from Firestore.");
       } else {
         await setDoc(configDocRef, dbState.systemConfig);
@@ -467,11 +523,35 @@ export const db = {
         maintenanceMode: false,
         announcement: null,
         announcementTemplate: null,
-        announcements: []
+        announcements: [],
+        premiumEnabled: true,
+        premiumMonthlyPrice: 150,
+        premiumYearlyPrice: 1200,
+        bankName: 'Akbank',
+        bankIban: 'TR56 0004 6000 1580 0745 9931 10',
+        bankReceiver: 'ANINDARSİM YAZILIM BİLİŞİM LİMİTED ŞİRKETİ'
       };
     }
     if (!dbState.systemConfig.announcements) {
       dbState.systemConfig.announcements = [];
+    }
+    if (dbState.systemConfig.premiumEnabled === undefined) {
+      dbState.systemConfig.premiumEnabled = true;
+    }
+    if (dbState.systemConfig.premiumMonthlyPrice === undefined) {
+      dbState.systemConfig.premiumMonthlyPrice = 150;
+    }
+    if (dbState.systemConfig.premiumYearlyPrice === undefined) {
+      dbState.systemConfig.premiumYearlyPrice = 1200;
+    }
+    if (dbState.systemConfig.bankName === undefined) {
+      dbState.systemConfig.bankName = 'Akbank';
+    }
+    if (dbState.systemConfig.bankIban === undefined) {
+      dbState.systemConfig.bankIban = 'TR56 0004 6000 1580 0745 9931 10';
+    }
+    if (dbState.systemConfig.bankReceiver === undefined) {
+      dbState.systemConfig.bankReceiver = 'ANINDARSİM YAZILIM BİLİŞİM LİMİTED ŞİRKETİ';
     }
     return dbState.systemConfig;
   },
@@ -600,6 +680,24 @@ export const db = {
     return msg;
   },
 
+  replyToSupportMessage(id: string, reply: string): SupportMessage | undefined {
+    if (!dbState.supportMessages) dbState.supportMessages = [];
+    const msg = dbState.supportMessages.find(m => m.id === id);
+    if (msg) {
+      msg.adminReply = reply;
+      msg.repliedAt = new Date().toISOString();
+      msg.status = 'resolved';
+      saveDb();
+
+      if (isFirebaseInitialized && firestore) {
+        setDoc(doc(firestore, 'supportMessages', id), msg).catch((err: any) => {
+          console.error("Failed to save support message reply in Firestore:", err);
+        });
+      }
+    }
+    return msg;
+  },
+
   deleteSupportMessage(id: string): boolean {
     if (!dbState.supportMessages) dbState.supportMessages = [];
     const index = dbState.supportMessages.findIndex(m => m.id === id);
@@ -661,6 +759,23 @@ export const db = {
       return true;
     }
     return false;
+  },
+
+  updateUserPremium(id: string, isPremium: boolean, premiumPlan: 'monthly' | 'yearly' | null, expiresAt: string | null): User | undefined {
+    const user = dbState.users.find(u => u.id === id);
+    if (user) {
+      user.isPremium = isPremium;
+      user.premiumPlan = premiumPlan;
+      user.premiumExpiresAt = expiresAt;
+      saveDb();
+      if (isFirebaseInitialized && firestore) {
+        updateDoc(doc(firestore, 'users', id), { isPremium, premiumPlan, premiumExpiresAt: expiresAt }).catch((err: any) => {
+          console.error("Failed to update user premium in Firestore:", err);
+        });
+      }
+      return user;
+    }
+    return undefined;
   }
 };
 

@@ -1,9 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MessageSquare, Send, CheckCircle, AlertCircle, Sparkles, Mail, ShieldCheck, Heart } from 'lucide-react';
+import { MessageSquare, Send, CheckCircle, AlertCircle, Sparkles, Mail, ShieldCheck, Heart, User as UserIcon, Clock } from 'lucide-react';
 import { motion } from 'motion/react';
+import { User, SupportMessage } from '../types';
 
-export default function Support() {
+interface SupportProps {
+  user: User | null;
+}
+
+export default function Support({ user }: SupportProps) {
   const navigate = useNavigate();
 
   const [name, setName] = useState('');
@@ -14,6 +19,36 @@ export default function Support() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [myMessages, setMyMessages] = useState<SupportMessage[]>([]);
+
+  // Auto-fill user information if logged in
+  useEffect(() => {
+    if (user) {
+      setName(user.username);
+      setEmail(user.email);
+    }
+  }, [user]);
+
+  // Fetch previous messages & replies
+  const fetchMyMessages = async () => {
+    if (!user) return;
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/user/support-messages', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setMyMessages(data.messages || []);
+      }
+    } catch (err) {
+      console.error('Error fetching support messages:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchMyMessages();
+  }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,10 +61,12 @@ export default function Support() {
     setError(null);
 
     try {
+      const token = localStorage.getItem('token');
       const response = await fetch('/api/support-messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
         body: JSON.stringify({ name, email, subject, message }),
       });
@@ -44,6 +81,7 @@ export default function Support() {
       // Reset form fields
       setMessage('');
       setSubject('');
+      fetchMyMessages();
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Teknik bir sorun oluştu, lütfen daha sonra tekrar deneyin.');
@@ -229,6 +267,77 @@ export default function Support() {
         </motion.div>
 
       </div>
+
+      {/* My Tickets Section (Only if logged-in and has sent at least one ticket) */}
+      {user && myMessages.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mt-12 rounded-3xl border border-zinc-900 bg-zinc-950/20 p-6 sm:p-8 space-y-6 shadow-xl"
+          id="user-tickets-list"
+        >
+          <div>
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <MessageSquare className="h-5 w-5 text-teal-400" />
+              Destek Taleplerim ve Canlı Cevaplar ({myMessages.length})
+            </h2>
+            <p className="text-xs text-zinc-400">İlettiğiniz destek taleplerini ve yetkililer tarafından verilen canlı cevapları takip edin.</p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4">
+            {myMessages.map((msg) => (
+              <div key={msg.id} className="rounded-2xl border border-zinc-900 bg-zinc-950/50 p-5 space-y-4 relative overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-900 pb-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <strong className="text-sm font-bold text-white">{msg.subject}</strong>
+                      {msg.status === 'unread' ? (
+                        <span className="inline-flex items-center rounded-full bg-blue-500/10 px-2 py-0.5 text-[9px] font-bold text-blue-400 ring-1 ring-inset ring-blue-500/20">
+                          Sıraya Alındı
+                        </span>
+                      ) : msg.status === 'read' ? (
+                        <span className="inline-flex items-center rounded-full bg-zinc-800 px-2 py-0.5 text-[9px] font-bold text-zinc-400">
+                          İncelemede
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold text-emerald-400 ring-1 ring-inset ring-emerald-500/20">
+                          Çözüldü / Cevaplandı
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-zinc-500 font-bold block">{new Date(msg.createdAt).toLocaleString('tr-TR')}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <span className="text-zinc-500 font-bold uppercase tracking-wider text-[8px] block">İlettiğiniz Mesaj:</span>
+                  <p className="text-xs text-zinc-300 font-medium whitespace-pre-wrap leading-relaxed bg-zinc-900/10 rounded-xl p-3">{msg.message}</p>
+                </div>
+
+                {msg.adminReply ? (
+                  <div className="rounded-xl border border-amber-500/15 bg-amber-500/[0.02] p-4 text-xs space-y-1.5 relative">
+                    <div className="absolute top-0 right-0 w-16 h-16 bg-amber-500/[0.02] rounded-full blur-xl pointer-events-none"></div>
+                    <div className="flex items-center justify-between text-[9px] font-black text-amber-400 uppercase tracking-widest">
+                      <span className="flex items-center gap-1">
+                        <Sparkles className="h-3.5 w-3.5 text-amber-400 fill-amber-400/20" />
+                        <span>YETKİLİ DESTEK YANITI</span>
+                      </span>
+                      <span>{msg.repliedAt ? new Date(msg.repliedAt).toLocaleString('tr-TR') : ''}</span>
+                    </div>
+                    <p className="text-zinc-200 font-bold whitespace-pre-wrap leading-relaxed">{msg.adminReply}</p>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 font-semibold bg-zinc-900/20 rounded-xl p-3 border border-zinc-900">
+                    <Clock className="h-3.5 w-3.5 animate-spin text-zinc-500" />
+                    <span>Destek ekibimiz bu talebi inceliyor. Canlı yanıtınız burada görünecektir!</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
     </div>
   );
 }

@@ -334,7 +334,7 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
     if (files.length === 0) return;
 
     // Check maximum simultaneous files limit
-    const maxSimultaneous = user ? 10 : 5;
+    const maxSimultaneous = user ? (user.isPremium ? 25 : 10) : (systemStatus?.guestUploadLimit ?? 5);
     if (files.length > maxSimultaneous) {
       setError(`Aynı anda en fazla ${maxSimultaneous} adet görsel yükleyebilirsiniz. Seçtiğiniz dosya sayısı: ${files.length}. Lütfen dosya sayısını azaltıp tekrar deneyin.`);
       return;
@@ -488,7 +488,16 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
       if (!user) {
         fetchGuestStats();
       }
+      let shouldShowAd = false;
       if (systemStatus?.adEnabled) {
+        if (!user) {
+          shouldShowAd = true;
+        } else if (!user.isPremium) {
+          shouldShowAd = systemStatus.adShowToRegistered !== false;
+        }
+      }
+
+      if (shouldShowAd) {
         setAdCountdown(systemStatus.adDuration !== undefined ? systemStatus.adDuration : 5);
         setShowAdModal(true);
       }
@@ -1519,7 +1528,7 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
 
       {/* Advertisement Overlay Modal */}
       <AnimatePresence>
-        {showAdModal && systemStatus?.adEnabled && (
+        {showAdModal && systemStatus?.adEnabled && (!user || !user.isPremium) && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

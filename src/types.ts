@@ -4,6 +4,9 @@ export interface User {
   email: string;
   createdAt: string;
   isAdmin?: boolean;
+  isPremium?: boolean;
+  premiumExpiresAt?: string | null;
+  premiumPlan?: 'monthly' | 'yearly' | null;
 }
 
 export interface ImageRecord {
@@ -48,6 +51,9 @@ export interface SupportMessage {
   message: string;
   status: 'unread' | 'read' | 'resolved';
   createdAt: string;
+  isPremium?: boolean;
+  adminReply?: string;
+  repliedAt?: string;
 }
 
 export interface SystemStatus {
@@ -65,6 +71,13 @@ export interface SystemStatus {
   adDescription?: string;
   adButtonText?: string;
   adDuration?: number;
+  premiumEnabled?: boolean;
+  premiumMonthlyPrice?: number;
+  premiumYearlyPrice?: number;
+  adShowToRegistered?: boolean;
+  bankName?: string;
+  bankIban?: string;
+  bankReceiver?: string;
 }
 
-export type ViewType = 'home' | 'my-images' | 'login' | 'register' | 'detail' | 'admin' | 'hakkimizda' | 'sartlar' | 'yardim';
+export type ViewType = 'home' | 'my-images' | 'login' | 'register' | 'detail' | 'admin' | 'hakkimizda' | 'sartlar' | 'yardim' | 'premium';

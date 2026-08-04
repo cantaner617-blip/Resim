@@ -293,7 +293,15 @@ app.post('/api/auth/register', (req, res) => {
     const token = signToken({ id: user.id, username: user.username });
     res.status(201).json({
       token,
-      user: { id: user.id, username: user.username, email: user.email, isAdmin: user.isAdmin }
+      user: { 
+        id: user.id, 
+        username: user.username, 
+        email: user.email, 
+        isAdmin: user.isAdmin,
+        isPremium: user.isPremium,
+        premiumPlan: user.premiumPlan,
+        premiumExpiresAt: user.premiumExpiresAt
+      }
     });
   } catch (err: any) {
     console.error("Register error:", err);
@@ -317,7 +325,15 @@ app.post('/api/auth/login', (req, res) => {
     const token = signToken({ id: user.id, username: user.username });
     res.json({
       token,
-      user: { id: user.id, username: user.username, email: user.email, isAdmin: user.isAdmin }
+      user: { 
+        id: user.id, 
+        username: user.username, 
+        email: user.email, 
+        isAdmin: user.isAdmin,
+        isPremium: user.isPremium,
+        premiumPlan: user.premiumPlan,
+        premiumExpiresAt: user.premiumExpiresAt
+      }
     });
   } catch (err: any) {
     console.error("Login error:", err);
@@ -413,7 +429,16 @@ app.get('/api/auth/me', requireAuth, (req: AuthRequest, res) => {
     return res.status(404).json({ error: 'Kullanıcı bulunamadı.' });
   }
   res.json({
-    user: { id: user.id, username: user.username, email: user.email, isAdmin: user.isAdmin, createdAt: user.createdAt }
+    user: { 
+      id: user.id, 
+      username: user.username, 
+      email: user.email, 
+      isAdmin: user.isAdmin, 
+      isPremium: user.isPremium,
+      premiumPlan: user.premiumPlan,
+      premiumExpiresAt: user.premiumExpiresAt,
+      createdAt: user.createdAt 
+    }
   });
 });
 
@@ -711,7 +736,11 @@ app.get('/api/system-status', (req, res) => {
     adTitle: sysConfig.adTitle,
     adDescription: sysConfig.adDescription,
     adButtonText: sysConfig.adButtonText,
-    adDuration: sysConfig.adDuration
+    adDuration: sysConfig.adDuration,
+    premiumEnabled: sysConfig.premiumEnabled,
+    premiumMonthlyPrice: sysConfig.premiumMonthlyPrice,
+    premiumYearlyPrice: sysConfig.premiumYearlyPrice,
+    adShowToRegistered: sysConfig.adShowToRegistered
   });
 });
 
@@ -750,7 +779,14 @@ app.post('/api/system-config', requireAdmin, (req: AuthRequest, res) => {
     adTitle,
     adDescription,
     adButtonText,
-    adDuration
+    adDuration,
+    premiumEnabled,
+    premiumMonthlyPrice,
+    premiumYearlyPrice,
+    adShowToRegistered,
+    bankName,
+    bankIban,
+    bankReceiver
   } = req.body;
   
   const updated = db.updateSystemConfig({
@@ -765,7 +801,14 @@ app.post('/api/system-config', requireAdmin, (req: AuthRequest, res) => {
     adTitle: typeof adTitle === 'string' ? adTitle : undefined,
     adDescription: typeof adDescription === 'string' ? adDescription : undefined,
     adButtonText: typeof adButtonText === 'string' ? adButtonText : undefined,
-    adDuration: typeof adDuration === 'number' ? adDuration : undefined
+    adDuration: typeof adDuration === 'number' ? adDuration : undefined,
+    premiumEnabled: premiumEnabled === true,
+    premiumMonthlyPrice: typeof premiumMonthlyPrice === 'number' ? premiumMonthlyPrice : undefined,
+    premiumYearlyPrice: typeof premiumYearlyPrice === 'number' ? premiumYearlyPrice : undefined,
+    adShowToRegistered: adShowToRegistered === true,
+    bankName: typeof bankName === 'string' ? bankName : undefined,
+    bankIban: typeof bankIban === 'string' ? bankIban : undefined,
+    bankReceiver: typeof bankReceiver === 'string' ? bankReceiver : undefined
   });
   res.json(updated);
 });
@@ -850,18 +893,45 @@ app.delete('/api/admin/reports/:id', requireAdmin, (req: AuthRequest, res) => {
 // ================= SUPPORT MESSAGES (CONTACT) =================
 
 // Public Submit Support Message
-app.post('/api/support-messages', (req, res) => {
+app.post('/api/support-messages', optionalAuth, (req: AuthRequest, res) => {
   const { name, email, subject, message } = req.body;
   if (!name || !email || !subject || !message) {
     return res.status(400).json({ error: 'Lütfen tüm alanları doldurun.' });
   }
+
+  // Determine if premium user
+  let isPremium = false;
+  if (req.user) {
+    const user = db.getUserById(req.user.id);
+    if (user?.isPremium) {
+      isPremium = true;
+    }
+  } else {
+    const user = db.getUserByEmail(email);
+    if (user?.isPremium) {
+      isPremium = true;
+    }
+  }
+
   const msg = db.addSupportMessage({
     name,
     email,
     subject,
-    message
+    message,
+    isPremium
   });
   res.status(201).json({ success: true, message: msg });
+});
+
+// User Get Their Own Support Messages with Replies
+app.get('/api/user/support-messages', requireAuth, (req: AuthRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Lütfen giriş yapın.' });
+  const fullUser = db.getUserById(req.user.id);
+  if (!fullUser) return res.status(404).json({ error: 'Kullanıcı bulunamadı.' });
+  const messages = db.getSupportMessages().filter(
+    m => m.email.toLowerCase() === fullUser.email.toLowerCase()
+  );
+  res.json({ messages });
 });
 
 // Admin Get All Support Messages
@@ -895,6 +965,77 @@ app.delete('/api/admin/support-messages/:id', requireAdmin, (req: AuthRequest, r
 app.post('/api/admin/reset-guest-uploads', requireAdmin, (req: AuthRequest, res) => {
   db.resetAllGuestUploads();
   res.json({ success: true, message: 'Tüm misafir yükleme limitleri sıfırlandı.' });
+});
+
+// ================= PREMIUM & MEMBERSHIP MANAGEMENT ENDPOINTS =================
+
+// Public Premium Purchase
+app.post('/api/user/premium', requireAuth, (req: AuthRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Lütfen giriş yapın.' });
+  const { plan, paymentMethod } = req.body;
+  if (!plan || !paymentMethod) {
+    return res.status(400).json({ error: 'Paket planı ve ödeme yöntemi seçilmelidir.' });
+  }
+
+  // Calculate expiration date
+  const now = new Date();
+  if (plan === 'monthly') {
+    now.setMonth(now.getMonth() + 1);
+  } else if (plan === 'yearly') {
+    now.setFullYear(now.getFullYear() + 1);
+  } else {
+    return res.status(400).json({ error: 'Geçersiz plan seçimi.' });
+  }
+
+  const updatedUser = db.updateUserPremium(req.user.id, true, plan, now.toISOString());
+  if (!updatedUser) {
+    return res.status(404).json({ error: 'Kullanıcı bulunamadı.' });
+  }
+
+  res.json({
+    success: true,
+    message: 'Tebrikler! Premium üyeliğiniz başarıyla aktif edildi. Sınırsız, reklamsız ve 25 adete kadar toplu resim yükleme ayrıcalıklarınız başladı.',
+    user: {
+      id: updatedUser.id,
+      username: updatedUser.username,
+      email: updatedUser.email,
+      isAdmin: updatedUser.isAdmin,
+      isPremium: updatedUser.isPremium,
+      premiumPlan: updatedUser.premiumPlan,
+      premiumExpiresAt: updatedUser.premiumExpiresAt
+    }
+  });
+});
+
+// Admin Get All Registered Users
+app.get('/api/admin/users', requireAdmin, (req: AuthRequest, res) => {
+  const users = db.getUsers().map(({ passwordHash, ...u }) => u);
+  res.json({ users });
+});
+
+// Admin Toggle User Premium Status Manually
+app.post('/api/admin/users/:id/premium', requireAdmin, (req: AuthRequest, res) => {
+  const { isPremium, plan } = req.body;
+  const user = db.getUserById(req.params.id);
+  if (!user) {
+    return res.status(404).json({ error: 'Kullanıcı bulunamadı.' });
+  }
+  const expiresAt = isPremium ? (plan === 'yearly' ? new Date(Date.now() + 365*24*60*60*1000).toISOString() : new Date(Date.now() + 30*24*60*60*1000).toISOString()) : null;
+  const updated = db.updateUserPremium(req.params.id, isPremium === true, isPremium ? plan || 'monthly' : null, expiresAt);
+  res.json({ success: true, user: updated });
+});
+
+// Admin Reply To Support Message
+app.post('/api/admin/support-messages/:id/reply', requireAdmin, (req: AuthRequest, res) => {
+  const { reply } = req.body;
+  if (!reply || !reply.trim()) {
+    return res.status(400).json({ error: 'Lütfen geçerli bir cevap metni girin.' });
+  }
+  const updated = db.replyToSupportMessage(req.params.id, reply);
+  if (!updated) {
+    return res.status(404).json({ error: 'Destek talebi bulunamadı.' });
+  }
+  res.json({ success: true, message: updated });
 });
 
 // ================= BACKGROUND CLEANUP OF EXPIRED IMAGES =================
