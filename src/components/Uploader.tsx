@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, DragEvent, ChangeEvent } from 'react';
 import { Upload, FileImage, Copy, Check, Eye, Link as LinkIcon, Code, MessageSquare, AlertCircle, SlidersHorizontal, Zap, Signature, Clock, Sparkles, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User, SystemStatus } from '../types';
+import ImageEditor from './ImageEditor';
 
 interface UploaderProps {
   user: User | null;
@@ -181,6 +182,63 @@ const compressImage = (
   });
 };
 
+function StagingFileCard({ file, index, onEdit, onRemove }: { file: File; index: number; onEdit: () => void; onRemove: () => void }) {
+  const [preview, setPreview] = useState<string>('');
+
+  useEffect(() => {
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [file]);
+
+  return (
+    <div className="bg-zinc-950 border border-zinc-900 rounded-2xl p-4 flex flex-col justify-between relative group hover:border-zinc-800 transition-all duration-300">
+      <div className="space-y-3">
+        {/* Image preview */}
+        <div className="aspect-square w-full rounded-xl bg-zinc-900 overflow-hidden relative flex items-center justify-center border border-zinc-900">
+          {preview ? (
+            <img src={preview} alt={file.name} className="w-full h-full object-cover" />
+          ) : (
+            <div className="h-6 w-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
+          )}
+          {/* Accent decoration */}
+          <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-lg bg-zinc-950/80 backdrop-blur-md border border-zinc-900 text-[9px] font-black text-amber-405 flex items-center gap-1">
+            <Sparkles className="h-2.5 w-2.5 text-amber-400" />
+            <span className="text-zinc-200">Düzenleyici</span>
+          </div>
+        </div>
+
+        {/* File info */}
+        <div className="min-w-0">
+          <p className="text-xs font-bold text-white truncate" title={file.name}>{file.name}</p>
+          <p className="text-[10px] text-zinc-500 font-mono mt-0.5">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+        </div>
+      </div>
+
+      {/* Action buttons */}
+      <div className="grid grid-cols-2 gap-2 mt-4">
+        <button
+          type="button"
+          onClick={onRemove}
+          className="px-2.5 py-1.5 rounded-xl border border-zinc-900 bg-zinc-950 hover:bg-red-500/10 hover:border-red-500/20 text-zinc-500 hover:text-red-400 text-[11px] font-bold transition-all cursor-pointer"
+        >
+          Kaldır
+        </button>
+        <button
+          type="button"
+          onClick={onEdit}
+          className="px-2.5 py-1.5 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 hover:bg-teal-500/20 text-[11px] font-extrabold transition-all cursor-pointer flex items-center justify-center gap-1"
+        >
+          <SlidersHorizontal className="h-3 w-3" />
+          <span>Düzenle</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Uploader({ user, onUploadSuccess, systemStatus }: UploaderProps) {
   const [dragActive, setDragActive] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -188,6 +246,10 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
   const [results, setResults] = useState<UploadedResult[]>([]);
   const [activeResultIndex, setActiveResultIndex] = useState<number>(0);
   const [showBulkCodes, setShowBulkCodes] = useState<boolean>(false);
+
+  // Image preparation / staging states
+  const [stagingFiles, setStagingFiles] = useState<File[]>([]);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
   interface UploadProgressItem {
     id: string;
@@ -301,21 +363,53 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
     }
   };
 
+  const handleFilesSelected = (files: File[]) => {
+    if (files.length === 0) return;
+
+    // Check maximum simultaneous files limit
+    const maxSimultaneous = user ? (user.isPremium ? 25 : 10) : (systemStatus?.guestUploadLimit ?? 5);
+    if (files.length > maxSimultaneous) {
+      setError(`Aynı anda en fazla ${maxSimultaneous} adet görsel yükleyebilirsiniz. Seçtiğiniz dosya sayısı: ${files.length}. Lütfen dosya sayısını azaltıp tekrar deneyin.`);
+      return;
+    }
+
+    // Guest remaining limit check
+    if (!user && guestStats) {
+      if (guestStats.remaining <= 0) {
+        setError(`Misafir yükleme limitine ulaştınız! Misafir olarak en fazla ${guestStats.limit} resim yükleyebilirsiniz. Hemen ücretsiz kayıt olarak sınırsız yüklemeye başlayın!`);
+        return;
+      }
+      if (guestStats.remaining < files.length) {
+        setError(`Seçtiğiniz görsel sayısı (${files.length}), kalan misafir yükleme limitinizi (${guestStats.remaining}) aşıyor! Lütfen daha az görsel seçin veya hemen ücretsiz kayıt olun.`);
+        return;
+      }
+    }
+
+    setError(null);
+    setStagingFiles(files);
+  };
+
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleFilesUpload(Array.from(e.dataTransfer.files));
+      handleFilesSelected(Array.from(e.dataTransfer.files));
     }
   };
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     e.preventDefault();
     if (e.target.files && e.target.files.length > 0) {
-      handleFilesUpload(Array.from(e.target.files));
+      handleFilesSelected(Array.from(e.target.files));
     }
+  };
+
+  const handleStartUpload = () => {
+    const filesToUpload = [...stagingFiles];
+    setStagingFiles([]); // Clear staging
+    handleFilesUpload(filesToUpload);
   };
 
   const triggerFileInput = () => {
@@ -567,7 +661,83 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
   return (
     <div className="mx-auto max-w-4xl" id="uploader-container">
       {results.length === 0 ? (
-        <div className="space-y-6">
+        editingIndex !== null ? (
+          <ImageEditor
+            file={stagingFiles[editingIndex]}
+            user={user}
+            onSave={(editedFile) => {
+              setStagingFiles(prev => {
+                const updated = [...prev];
+                updated[editingIndex!] = editedFile;
+                return updated;
+              });
+              setEditingIndex(null);
+            }}
+            onCancel={() => setEditingIndex(null)}
+            onDirectUpload={() => {
+              setEditingIndex(null);
+            }}
+          />
+        ) : stagingFiles.length > 0 ? (
+          <div className="space-y-6" id="preparation-workspace">
+            <div className="bg-zinc-950 border border-zinc-900 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl relative overflow-hidden">
+              {/* Accent gradients */}
+              <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/5 rounded-full blur-2xl pointer-events-none" />
+
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-900 pb-5">
+                <div>
+                  <h2 className="text-lg font-black text-white flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-teal-400 animate-pulse" />
+                    Yükleme Öncesi Hazırlık (Düzenleyici)
+                  </h2>
+                  <p className="text-xs text-zinc-500 font-medium mt-1">Seçtiğiniz görselleri yüklemeden önce düzenleyebilir veya doğrudan yüklemeyi başlatabilirsiniz.</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setStagingFiles([])}
+                    className="px-4 py-2 rounded-xl border border-zinc-900 bg-zinc-950 hover:bg-zinc-900 text-xs text-zinc-400 hover:text-white transition-colors cursor-pointer font-bold"
+                  >
+                    Seçimi Temizle
+                  </button>
+                </div>
+              </div>
+
+              {/* Grid List */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+                {stagingFiles.map((file, idx) => (
+                  <StagingFileCard
+                    key={idx}
+                    file={file}
+                    index={idx}
+                    onEdit={() => setEditingIndex(idx)}
+                    onRemove={() => {
+                      setStagingFiles(prev => prev.filter((_, i) => i !== idx));
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* Footer Actions */}
+              <div className="border-t border-zinc-900 pt-5 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div className="text-xs text-zinc-500 font-medium">
+                  Toplam <strong>{stagingFiles.length}</strong> adet görsel yüklenmeye hazır.
+                </div>
+                <div className="flex gap-3 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={handleStartUpload}
+                    className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-450 hover:from-teal-400 hover:to-emerald-350 text-zinc-950 text-xs font-black transition-all cursor-pointer shadow-lg shadow-teal-500/10 flex items-center justify-center gap-1.5"
+                  >
+                    Yüklemeyi Başlat ({stagingFiles.length} Görsel)
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-6">
           {/* Main Upload Zone */}
           <div
             id="drag-drop-zone"
@@ -1008,6 +1178,7 @@ export default function Uploader({ user, onUploadSuccess, systemStatus }: Upload
             </motion.div>
           )}
         </div>
+        )
       ) : (
         /* Result Share Card */
         <motion.div

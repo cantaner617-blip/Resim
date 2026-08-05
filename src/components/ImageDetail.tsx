@@ -206,28 +206,50 @@ export default function ImageDetail({ id, onBack, user, systemStatus }: ImageDet
               </div>
             )}
             
-            <div className="space-y-2.5 border-t border-zinc-900 pt-4">
-              <div className="flex items-center justify-between text-xs text-zinc-400">
-                <span className="flex items-center gap-1.5 text-zinc-500">
-                  <Calendar className="h-4 w-4 text-teal-400" />
-                  Yükleme Tarihi
-                </span>
-                <span className="font-medium text-zinc-300">{formatDate(image.createdAt)}</span>
+            <div className="border-t border-zinc-900 pt-4 space-y-4">
+              <h3 className="text-xs font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                <Eye className="h-3.5 w-3.5 text-teal-400 animate-pulse" />
+                Görsel İstatistikleri
+              </h3>
+
+              <div className="grid grid-cols-2 gap-3">
+                {/* Views Stat Box */}
+                <div className="bg-zinc-950/60 border border-zinc-900 rounded-xl p-3 flex flex-col justify-between relative overflow-hidden group hover:border-teal-500/20 transition-all duration-300">
+                  <div className="absolute top-0 right-0 w-10 h-10 bg-teal-500/5 rounded-full blur-md -mr-3 -mt-3 pointer-events-none group-hover:bg-teal-500/10 transition-all" />
+                  <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 font-bold uppercase tracking-wider">
+                    <Eye className="h-3.5 w-3.5 text-teal-400" />
+                    Görüntülenme
+                  </div>
+                  <div className="mt-2">
+                    <p className="text-lg font-black text-white tracking-tight">{image.views} kez</p>
+                    <p className="text-[9px] text-zinc-500 font-medium">Toplam izlenme</p>
+                  </div>
+                </div>
+
+                {/* Upload Date Stat Box */}
+                <div className="bg-zinc-950/60 border border-zinc-900 rounded-xl p-3 flex flex-col justify-between relative overflow-hidden group hover:border-teal-500/20 transition-all duration-300">
+                  <div className="absolute top-0 right-0 w-10 h-10 bg-teal-500/5 rounded-full blur-md -mr-3 -mt-3 pointer-events-none group-hover:bg-teal-500/10 transition-all" />
+                  <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 font-bold uppercase tracking-wider">
+                    <Calendar className="h-3.5 w-3.5 text-teal-400" />
+                    Yükleme Tarihi
+                  </div>
+                  <div className="mt-2 min-w-0">
+                    <p className="text-xs font-extrabold text-white tracking-tight truncate animate-fade-in" title={formatDate(image.createdAt)}>
+                      {formatDate(image.createdAt)}
+                    </p>
+                    <p className="text-[9px] text-zinc-500 font-medium">Sistem kayıt zamanı</p>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center justify-between text-xs text-zinc-400">
-                <span className="flex items-center gap-1.5 text-zinc-500">
-                  <Eye className="h-4 w-4 text-teal-400" />
-                  Görüntülenme Sayısı
+
+              {/* Storage details bar */}
+              <div className="bg-zinc-950/40 border border-zinc-900 rounded-xl px-3 py-2.5 flex items-center justify-between text-[10px] text-zinc-400 font-bold">
+                <span className="flex items-center gap-1.5 text-zinc-500 uppercase tracking-wider">
+                  <FileText className="h-3.5 w-3.5 text-teal-400" />
+                  Altyapı Sınıfı
                 </span>
-                <span className="font-bold text-zinc-300">{image.views} kez izlendi</span>
-              </div>
-              <div className="flex items-center justify-between text-xs text-zinc-400">
-                <span className="flex items-center gap-1.5 text-zinc-500">
-                  <FileText className="h-4 w-4 text-teal-400" />
-                  Depolama Türü
-                </span>
-                <span className="font-medium text-zinc-300">
-                  {image.url.includes('cloudinary') ? 'Cloudinary Cloud' : 'Yerel Veritabanı'}
+                <span className="text-zinc-300 font-extrabold">
+                  {image.url.includes('cloudinary') ? 'Bulut Depolama (Cloudinary)' : 'Yerel Sunucu Sürücüsü'}
                 </span>
               </div>
             </div>
